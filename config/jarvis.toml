@@ -1,0 +1,33 @@
+# Configuración por defecto de JARVIS-WIL (versionada, SIN secretos).
+# Cualquier valor puede sobrescribirse en .env o con variables de entorno.
+# Las claves son los nombres de campo de app/config/settings.py.
+
+# --- Identidad ---
+name = "Jarvis"
+language = "es"
+wake_word = "jarvis"
+env = "development"           # development | production | test
+
+# --- Cerebro ---
+llm_provider = "hybrid"       # hybrid: Ollama para lo simple, Claude para lo complejo
+ollama_host = "http://127.0.0.1:11434"
+ollama_model = "qwen3:4b-instruct"
+ollama_timeout = 30.0
+claude_command = "claude"
+
+# --- Logging ---
+log_level = "INFO"
+log_file = "logs/jarvis.log"
+log_max_bytes = 1000000
+log_backup_count = 5
+
+# --- Permisos (se aplican a las herramientas a partir de la Fase 3) ---
+allow_shell = false
+allow_file_write = false
+require_confirmation = true
+allowed_paths = []            # vacío = solo el workspace
+
+# --- Health check ---
+github_remote = "git@github.com:Wil-1302/Jarvis.git"
+check_github = true
+ffmpeg_path = "ffmpeg"

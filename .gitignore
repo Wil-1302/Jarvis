@@ -1,0 +1,41 @@
+# --- Secretos ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.credentials*
+
+# --- Python ---
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Datos de ejecución de JARVIS ---
+logs/
+*.log
+downloads/
+memory/
+models/
+
+# --- Proyectos generados por JARVIS ---
+projects/*/node_modules/
+projects/*/.env
+projects/*/.venv/
+projects/*/__pycache__/
+
+# --- Editor / sistema ---
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini
+.DS_Store
