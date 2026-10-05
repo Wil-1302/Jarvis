@@ -81,6 +81,22 @@ def test_github_check_can_be_disabled(settings) -> None:
     assert health.check_github(settings).status is Status.SKIP
 
 
+def test_missing_voice_models_fail_with_hint(make_settings, tmp_path) -> None:
+    settings = make_settings(models_dir=tmp_path / "vacio")
+    result = health.check_voice_models(settings)
+    assert result.status is Status.FAIL
+    assert "--download-models" in result.detail
+
+
+def test_cuda_check_skipped_on_cpu(make_settings) -> None:
+    assert health.check_cuda(make_settings(stt_device="cpu")).status is Status.SKIP
+
+
+def test_audio_check_reports_missing_device(make_settings) -> None:
+    result = health.check_audio(make_settings(audio_input_device="microfono-inexistente-xyz"))
+    assert result.status is Status.FAIL
+
+
 def test_broken_check_does_not_stop_the_rest(settings) -> None:
     def broken(_settings):
         raise RuntimeError("boom")

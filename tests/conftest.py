@@ -75,6 +75,31 @@ def offline_handler(request: httpx.Request) -> httpx.Response:
     raise httpx.ConnectError("connection refused", request=request)
 
 
+@pytest.fixture(scope="session")
+def voice_models_dir() -> Path:
+    """Modelos reales en models/ (se descargan la primera vez)."""
+    return load_settings(config_file=None, env_file=None).models_path
+
+
+@pytest.fixture(scope="session")
+def tts_engine(voice_models_dir):
+    from app.voice.tts import TextToSpeech
+
+    try:
+        return TextToSpeech(voice_models_dir, "es_MX-claude-high")
+    except Exception as exc:  # sin red ni modelo
+        pytest.skip(f"Piper no disponible: {exc}")
+
+
+@pytest.fixture(scope="session")
+def spanish_speech(tts_engine):
+    """'Jarvis, ¿cómo estás hoy?' sintetizado con Piper, int16 a 16 kHz."""
+    from app.audio.resample import resample, to_int16
+
+    speech = tts_engine.synthesize("Jarvis, ¿cómo estás hoy?")
+    return to_int16(resample(speech.audio, speech.sample_rate, 16000))
+
+
 @pytest.fixture
 def fake_ollama() -> OllamaClient:
     return OllamaClient("http://ollama.test", transport=httpx.MockTransport(fake_ollama_handler()))

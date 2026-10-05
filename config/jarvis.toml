@@ -27,6 +27,34 @@ allow_file_write = false
 require_confirmation = true
 allowed_paths = []            # vacío = solo el workspace
 
+# --- Audio (vacío = dispositivo predeterminado de Windows; acepta índice o parte del nombre) ---
+audio_input_device = ""
+audio_output_device = ""
+audio_host_api = "MME"        # MME convierte a 16 kHz; WASAPI exige el sample rate nativo
+
+# --- Voz ---
+models_dir = "models"
+wake_engine = "hybrid"        # hybrid | acoustic | transcript (ver docs/voice.md)
+wake_aliases = ["jarvis", "yarvis", "harvis", "jarbis", "yarbis", "harbis", "jarvi", "yarvi"]
+wake_model = "hey_jarvis_v0.1"
+wake_threshold = 0.5
+wake_patience = 1
+vad_threshold = 0.5
+vad_min_silence_ms = 700      # silencio que marca el fin de la frase
+vad_speech_pad_ms = 200
+listen_timeout_s = 6.0
+max_utterance_s = 15.0
+stt_model = "large-v3-turbo"  # elegido tras comparar small / medium / large-v3-turbo
+stt_device = "auto"           # auto | cuda | cpu
+stt_compute_type = "int8_float16"
+stt_beam_size = 1
+stt_prompt = "Jarvis, Spotify, YouTube, Chrome."
+tts_voice = "es_MX-ald-medium"   # alternativa: es_MX-claude-high (voz femenina)
+tts_length_scale = 1.0        # >1 habla más lento
+echo_cooldown_ms = 400
+voice_max_reply_words = 60
+ollama_keep_alive = "30m"
+
 # --- Health check ---
 github_remote = "git@github.com:Wil-1302/Jarvis.git"
 check_github = true

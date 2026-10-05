@@ -1,117 +1,123 @@
 # JARVIS-WIL
 
-Asistente personal de voz para Windows 11. Funcionará en segundo plano, se activará con la palabra
-**"Jarvis"**, entenderá órdenes en español y ejecutará acciones reales en el equipo. Usará modelos
-locales (Ollama) para lo simple y Claude / Claude Code para lo complejo.
+Asistente personal de voz para Windows 11. Se activa con la palabra **"Jarvis"**, entiende
+español, responde por voz y, en próximas fases, ejecutará acciones reales en el equipo.
+Usa modelos locales (Ollama) para lo simple y Claude / Claude Code para lo complejo.
 
 - **Repositorio oficial:** `git@github.com:Wil-1302/Jarvis.git` (https://github.com/Wil-1302/Jarvis)
-- **Estado:** Fase 1 (cimientos) completada. Todavía no hay voz. Ver [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md).
+- **Estado:** Fase 2 (motor de voz local) completada: conversación básica por voz, 100% local.
+  Ver [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md).
 - **Uso:** personal y no comercial.
 
-## Arquitectura actual (Fase 1)
+## Cómo funciona
 
 ```
-python -m app ──► app/cli.py ──► app/core/jarvis.py (JarvisCore)
-                     │                 │
-                     │                 └─► app/brain/ollama_client.py ──► Ollama (qwen3:4b-instruct)
-                     │
-                     └─ --health ──► app/core/health.py (Python, config, workspace, Ollama,
-                                     modelo, FFmpeg, Git, GitHub SSH, Claude Code)
-
-app/config/settings.py   configuración central: entorno > .env > config/jarvis.toml > defaults
-app/core/logging.py      logs/jarvis.log (rotativo) con redacción de secretos
+Micrófono → wake word "Jarvis" (openWakeWord + Whisper) → VAD (Silero) → STT (faster-whisper, GPU)
+         → Ollama qwen3:4b-instruct (streaming) → TTS Piper es_MX → altavoces → vuelve a escuchar
 ```
 
-Arquitectura objetivo: Voice UI → wake word → STT → JARVIS Core → orquestador → herramientas/MCP →
-Windows / navegador / Spotify / ficheros / Internet → Claude Code / Ollama.
+Detalles: [docs/voice.md](docs/voice.md) (voz, modelos, latencia, VRAM, Smart App Control) y
+[docs/architecture.md](docs/architecture.md) (módulos y decisiones de diseño).
 
 ## Estructura
 
 ```
 app/
-  cli.py, __main__.py   entrada de la CLI (python -m app)
+  cli.py, __main__.py   CLI: python -m app [--voice | --health]
   config/               configuración central (pydantic-settings)
-  core/                 JarvisCore, logging y health check
-  brain/                clientes LLM (Ollama; Claude en fases posteriores)
-  audio/ voice/         captura de audio, wake word, STT y TTS (Fase 2)
+  core/                 JarvisCore (consola de texto), logging y health check
+  audio/                dispositivos, captura, reproducción y análisis (python -m app.audio)
+  voice/                wake word, VAD, STT, TTS, estados y pipeline (python -m app.voice)
+  brain/                cliente Ollama y conversación
   tools/                herramientas de Windows, Spotify, navegador... (Fase 3)
   agents/               orquestación de Claude Code (Fase 6)
   ui/                   app de bandeja (Fase 4)
 config/jarvis.toml      valores por defecto versionados (sin secretos)
-tests/                  pytest (unitarios + integración)
-scripts/                utilidades (vacío por ahora)
-docs/                   auditoría del entorno y plan del proyecto
+tests/                  pytest (unitarios, integración y hardware)
+scripts/                benchmark_stt.py, simulate_voice.py
+docs/                   auditoría, plan, arquitectura y voz
+models/                 modelos de voz descargados (no versionado)
 projects/ research/     proyectos e investigación generados por JARVIS
-logs/ memory/ downloads/  datos de ejecución (no versionados; se crean al arrancar)
+logs/ memory/ downloads/  datos de ejecución (no versionados)
 ```
-
-Cambios respecto a la propuesta inicial: el paquete Python se llama `app/` en la raíz del
-repositorio (no hay una carpeta `JARVIS-WIL/` intermedia) para que `python -m app` funcione desde la raíz.
-La CLI vive en `app/cli.py`, porque `app/ui/` queda reservado para la app de bandeja.
 
 ## Requisitos
 
 | Herramienta | Versión verificada | Notas |
 |---|---|---|
-| Windows 11 x64 | 25H2 | |
+| Windows 11 x64 | 25H2 | Smart App Control activado (compatible) |
+| GPU NVIDIA | RTX 4050 Laptop, 6 GB | opcional: sin GPU Whisper usa CPU |
 | uv | 0.12.13 | gestiona Python 3.12 y el venv |
 | Python | 3.12.14 (vía uv) | el Python global (3.14) no se toca |
 | Ollama | 0.34.2 | modelo `qwen3:4b-instruct` |
 | FFmpeg | 9.0.1 essentials (Gyan, winget) | |
 | Git + SSH a GitHub | 2.55 | |
-| Claude Code | 2.1.289 | opcional para el core; necesario en la Fase 6 |
+| Claude Code | 2.1.289 | necesario a partir de la Fase 6 |
 
 ## Instalación
 
 ```powershell
 git clone git@github.com:Wil-1302/Jarvis.git C:\Jarvis
 cd C:\Jarvis
-uv sync                      # crea .venv con Python 3.12 e instala dependencias (uv.lock)
-Copy-Item .env.example .env  # opcional: ajustes locales
+uv sync                               # .venv con Python 3.12 + dependencias (uv.lock)
+Copy-Item .env.example .env           # opcional: ajustes locales
 ollama pull qwen3:4b-instruct
 winget install --id Gyan.FFmpeg.Essentials --exact --scope user
+uv run python -m app.voice --download-models   # ~1,7 GB: wake word, Whisper, voz Piper
 ```
 
 ## Activar el entorno
 
 ```powershell
-.\.venv\Scripts\Activate.ps1   # o anteponer `uv run` a cada comando sin activar
+.\.venv\Scripts\Activate.ps1   # o anteponer `uv run` a cada comando
 ```
 
 ## Ejecutar JARVIS
 
 ```powershell
-python -m app            # consola interactiva (o: uv run python -m app / jarvis)
-python -m app --health   # comprobación del entorno; código de salida 0 = todo OK
-python -m app --version
+python -m app --voice    # asistente de voz: di "Jarvis, ¿cómo estás?"
+python -m app            # consola de texto
+python -m app --health   # comprobación del entorno (código 0 = todo OK)
 ```
 
-Comandos de la consola: `hola`, `estado`, `ayuda` y `salir`.
+Pruebas por componente:
+
+```powershell
+python -m app.audio --devices
+python -m app.audio --record-test
+python -m app.voice --wake-test
+python -m app.voice --vad-test
+python -m app.voice --stt-test
+python -m app.voice --tts-test
+```
 
 ## Tests
 
 ```powershell
-pytest                    # todos (incluye integración con Ollama, git y GitHub)
-pytest -m "not integration"   # solo tests unitarios, sin servicios externos
+pytest                          # todos (unitarios + integración con modelos, Ollama, git)
+pytest -m "not integration"     # solo unitarios: sin GPU, modelos ni servicios
+$env:JARVIS_HARDWARE_TESTS=1; pytest -m hardware   # incluye grabar del micrófono
 ```
+
+Los tests que necesitan tarjeta de sonido se omiten solos si no hay dispositivos (CI).
 
 ## Configuración
 
 Prioridad: **variables de entorno > `.env` > `config/jarvis.toml` > valores por defecto**.
-Las variables usan el prefijo `JARVIS_` (p. ej. `JARVIS_LANGUAGE`), salvo `OLLAMA_HOST`,
+Las variables usan el prefijo `JARVIS_` (p. ej. `JARVIS_TTS_VOICE`), salvo `OLLAMA_HOST`,
 `OLLAMA_MODEL` y `CLAUDE_COMMAND`. Consulta [.env.example](.env.example). `.env` nunca se versiona.
 
-Ajustes disponibles: nombre, idioma, wake word, entorno, workspace, proveedor LLM
-(`hybrid` / `ollama` / `claude`), host, modelo y timeout de Ollama, comando de Claude, logging
-(nivel, fichero, rotación), permisos (`allow_shell`, `allow_file_write`, `require_confirmation`,
-`allowed_paths`) y opciones del health check.
+Ajustes: identidad (nombre, idioma, wake word), workspace, proveedor LLM, Ollama, Claude,
+logging, permisos, dispositivos de audio, motor de wake word, VAD, Whisper, voz Piper y anti-eco.
 
 ## Dependencias
 
 | Paquete | Para qué |
 |---|---|
-| `pydantic-settings` | configuración tipada y validada desde TOML, `.env` y entorno (incluye `pydantic` y `python-dotenv`) |
-| `httpx` | cliente HTTP para la API de Ollama (testeable con `MockTransport`) |
+| `pydantic-settings` | configuración tipada desde TOML, `.env` y entorno |
+| `httpx` | API de Ollama (incluido streaming) y descarga de modelos |
+| `numpy`, `sounddevice` | audio (PortAudio) |
+| `faster-whisper` (+ `ctranslate2`, `onnxruntime`) | STT; Silero VAD y openWakeWord en ONNX |
+| `nvidia-cublas-cu12`, `nvidia-cudnn-cu12` | CUDA 12 para Whisper sin instalar el CUDA Toolkit |
+| `piper-tts` | TTS local |
 | `pytest` (dev) | tests |
-
-La CLI, el logging y TOML usan la biblioteca estándar (`argparse`, `logging`, `tomllib`).

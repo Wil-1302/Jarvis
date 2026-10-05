@@ -30,6 +30,13 @@ def _configure_stdio() -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jarvis", description="JARVIS-WIL")
     parser.add_argument("--health", action="store_true", help="comprueba el entorno y sale")
+    parser.add_argument("--voice", action="store_true", help="modo voz: escucha 'Jarvis'")
+    parser.add_argument(
+        "--max-turns", type=int, default=None, help="modo voz: termina tras N respuestas"
+    )
+    parser.add_argument(
+        "--seconds", type=float, default=None, help="modo voz: termina tras N segundos"
+    )
     parser.add_argument("--version", action="version", version=f"JARVIS-WIL {__version__}")
     return parser
 
@@ -65,6 +72,76 @@ def run_health(settings: Settings) -> int:
     for result in results:
         log.info("Health %s: %s - %s", result.status.value, result.name, result.detail)
     return 0 if healthy else 1
+
+
+def voice_banner(settings: Settings, mic: str, speakers: str) -> str:
+    line = "=" * 32
+    return "\n".join(
+        [
+            line,
+            "JARVIS-WIL".center(32),
+            line,
+            "",
+            f"Wake word: {settings.wake_word.capitalize()} ({settings.wake_engine})",
+            f"STT: faster-whisper ({settings.stt_model})",
+            f"TTS: Piper ({settings.tts_voice})",
+            f"Brain: Ollama ({settings.ollama_model})",
+            f"Mic: {mic}",
+            f"Speakers: {speakers}",
+            "",
+            "Di \"Jarvis\" y después tu pregunta. Ctrl+C para salir.",
+            "",
+            "Listening...",
+        ]
+    )
+
+
+def _print_voice_event(event) -> None:
+    data = event.data
+    if event.kind == "wake":
+        detail = f"score {data['score']:.2f}" if "score" in data else f"\"{data.get('text', '')}\""
+        print(f"[wake] Jarvis ({data['source']}, {detail})")
+    elif event.kind == "transcript":
+        print(f"[tú] {data['text']}")
+    elif event.kind == "reply":
+        print(f"[jarvis] {data['text']}")
+    elif event.kind == "metrics":
+        print(f"[tiempos] {data['summary']}\n\nListening...")
+    elif event.kind == "ignored" and data.get("text"):
+        print(f"  (ignorado: \"{data['text']}\" - {data['reason']})")
+    elif event.kind == "ignored":
+        print(f"  ({data['reason']})")
+    elif event.kind == "error":
+        print(f"[error] {data['message']}")
+    elif event.kind == "state" and data["current"] == "LISTENING":
+        print("[escuchando tu orden...]")
+
+
+def run_voice(settings: Settings, max_turns: int | None = None, seconds: float | None = None) -> int:
+    import threading
+
+    from app.voice.pipeline import build_pipeline
+
+    print("Cargando modelos de voz (wake word, VAD, Whisper, Piper, Ollama)...")
+    log.info("Modo voz solicitado")
+    pipeline = build_pipeline(settings, on_event=_print_voice_event)
+    mic, speakers = pipeline.devices
+    print(voice_banner(settings, mic.name, speakers.name))
+
+    stop = threading.Event()
+    timer = threading.Timer(seconds, stop.set) if seconds else None
+    if timer:
+        timer.start()
+    try:
+        with pipeline.source:
+            pipeline.run(stop, max_turns=max_turns)
+    except KeyboardInterrupt:
+        print("\nHasta luego.")
+    finally:
+        if timer:
+            timer.cancel()
+        log.info("Modo voz detenido tras %d turnos", len(pipeline.turns))
+    return 0
 
 
 def run_repl(
@@ -107,6 +184,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     setup_logging(settings)
     log.info("CLI iniciada (args=%s)", list(argv) if argv is not None else sys.argv[1:])
     try:
-        return run_health(settings) if args.health else run_repl(settings)
+        if args.health:
+            return run_health(settings)
+        if args.voice:
+            return run_voice(settings, args.max_turns, args.seconds)
+        return run_repl(settings)
     finally:
         log.info("CLI finalizada")

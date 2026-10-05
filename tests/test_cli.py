@@ -92,6 +92,44 @@ def test_main_reports_config_errors(monkeypatch, capsys) -> None:
     assert "[FAIL]" in capsys.readouterr().err
 
 
+def test_voice_mode_banner_and_events(settings, monkeypatch, capsys) -> None:
+    from app.audio.device_manager import AudioDevice
+    from app.voice import pipeline as pipeline_module
+    from app.voice.pipeline import PipelineEvent
+
+    device = AudioDevice(1, "Mic de prueba", "MME", 1, 0, 16000.0)
+
+    class FakePipeline:
+        def __init__(self, on_event):
+            self.on_event = on_event
+            self.devices = (device, device)
+            self.turns = []
+            self.source = self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return None
+
+        def run(self, stop, max_turns=None):
+            self.on_event(PipelineEvent("wake", {"source": "transcript", "text": "Jarvis"}))
+            self.on_event(PipelineEvent("transcript", {"text": "Jarvis, hola", "command": "hola"}))
+            self.on_event(PipelineEvent("reply", {"text": "Hola."}))
+
+    monkeypatch.setattr(
+        pipeline_module, "build_pipeline", lambda s, on_event: FakePipeline(on_event)
+    )
+    assert cli.run_voice(settings) == 0
+    out = capsys.readouterr().out
+    assert "Wake word: Jarvis" in out
+    assert "STT: faster-whisper" in out
+    assert "TTS: Piper" in out
+    assert "Brain: Ollama" in out
+    assert "Listening..." in out
+    assert "[jarvis] Hola." in out
+
+
 def test_version_flag(capsys) -> None:
     with pytest.raises(SystemExit) as exc:
         cli.main(["--version"])

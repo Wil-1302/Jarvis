@@ -71,6 +71,40 @@ class Settings(BaseSettings):
     require_confirmation: bool = True
     allowed_paths: list[Path] = Field(default_factory=list)
 
+    # --- Audio -------------------------------------------------------------
+    # Dispositivo por índice o por parte del nombre; vacío = predeterminado de Windows.
+    audio_input_device: str = ""
+    audio_output_device: str = ""
+    audio_host_api: str = "MME"  # MME convierte el sample rate; WASAPI exige el nativo
+
+    # --- Voz ---------------------------------------------------------------
+    models_dir: Path = Path("models")
+    # hybrid = openWakeWord + nombre en la transcripción de Whisper (recomendado en español)
+    wake_engine: Literal["hybrid", "acoustic", "transcript"] = "hybrid"
+    wake_aliases: list[str] = Field(
+        default_factory=lambda: [
+            "jarvis", "yarvis", "harvis", "jarbis", "yarbis", "harbis", "jarvi", "yarvi"
+        ]
+    )
+    wake_model: str = "hey_jarvis_v0.1"
+    wake_threshold: float = Field(0.5, ge=0.0, le=1.0)
+    wake_patience: int = Field(1, ge=1)  # frames consecutivos por encima del umbral
+    vad_threshold: float = Field(0.5, ge=0.0, le=1.0)
+    vad_min_silence_ms: int = 700  # silencio que marca el fin de la frase
+    vad_speech_pad_ms: int = 200
+    listen_timeout_s: float = 6.0  # tiempo máximo esperando a que empiece a hablar
+    max_utterance_s: float = 15.0
+    stt_model: str = "large-v3-turbo"
+    stt_device: Literal["cuda", "cpu", "auto"] = "auto"
+    stt_compute_type: str = "int8_float16"
+    stt_beam_size: int = Field(1, ge=1)
+    stt_prompt: str = "Jarvis, Spotify, YouTube, Chrome."  # vocabulario que ayuda a Whisper
+    tts_voice: str = "es_MX-ald-medium"
+    tts_length_scale: float = Field(1.0, gt=0.0)
+    echo_cooldown_ms: int = 400  # micrófono ignorado tras terminar de hablar
+    voice_max_reply_words: int = 60
+    ollama_keep_alive: str = "30m"
+
     # --- Health check / externos -------------------------------------------
     github_remote: str = "git@github.com:Wil-1302/Jarvis.git"
     check_github: bool = True
@@ -119,6 +153,10 @@ class Settings(BaseSettings):
     @property
     def log_path(self) -> Path:
         return self.resolve(self.log_file)
+
+    @property
+    def models_path(self) -> Path:
+        return self.resolve(self.models_dir)
 
     @property
     def data_dirs(self) -> dict[str, Path]:

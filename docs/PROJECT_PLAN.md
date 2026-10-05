@@ -69,9 +69,13 @@ Inventario del entorno, análisis de los repos, este borrador.
 - 53 tests (unitarios y de integración) en verde.
 - Pendiente para el inicio de la Fase 2: el script de diagnóstico de audio, porque necesita `sounddevice`.
 
-### Fase 2 — Pipeline de voz (MVP, por consola)
-- Primero: decidir cómo convivir con **Smart App Control** (está activado y bloquea binarios sin firma). Comprobar uno a uno que cada componente nativo se puede ejecutar.
-- Script de diagnóstico de audio: listar dispositivos, grabar 5 s, reproducirlos y medir el nivel de ruido.
+### Fase 2 — Motor de voz ✅ (2026-10-05)
+- Smart App Control se mantiene activado. Bloqueó scikit-learn (dependencia de `openwakeword`) → modelos ONNX de openWakeWord ejecutados directamente.
+- Audio (`python -m app.audio`), wake word híbrido (openWakeWord + nombre en la transcripción de Whisper), Silero VAD, faster-whisper `large-v3-turbo` en GPU, Piper `es_MX-ald-medium`, máquina de estados, pipeline con anti-eco y `python -m app --voice`.
+- Latencia simulada: primer audio ~0,65 s tras el fin de la frase (~1,35 s percibidos).
+- Detalle en `docs/voice.md`. Pendientes: barge-in/AEC, wake word propio entrenado en español, degradación automática si un juego ocupa la GPU.
+
+Plan original de la fase:
 - Captura con `sounddevice`, wake word con openWakeWord, VAD, STT con faster-whisper en español (comparar `small`, `medium` y `large-v3-turbo` en latencia y precisión) y TTS con Piper (voz es_ES o es_MX).
 - Máquina de estados: `IDLE → WAKE → LISTENING → THINKING → SPEAKING → IDLE`.
 - Interrupción (barge-in) y supresión de eco.
@@ -111,6 +115,6 @@ Inventario del entorno, análisis de los repos, este borrador.
 
 ## Decisiones pendientes para el usuario
 
-1. Smart App Control: ¿mantenerlo activado (y elegir componentes firmados o con reputación) o desactivarlo?
-2. ¿Spotify Premium? (determina el método de control en la Fase 3).
-3. ¿Push del commit de la Fase 1 a `origin/main`?
+1. ¿Spotify Premium? (determina el método de control en la Fase 3).
+2. ¿Borrar los modelos Whisper `small` y `medium` del benchmark (~2 GB en `models/whisper`)?
+3. ¿Voz masculina `es_MX-ald-medium` o femenina `es_MX-claude-high`?

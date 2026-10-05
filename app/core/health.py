@@ -162,6 +162,58 @@ def check_github(settings: Settings) -> CheckResult:
     return CheckResult("GitHub SSH", Status.FAIL, output.splitlines()[-1] if output else "sin respuesta")
 
 
+def check_audio(settings: Settings) -> CheckResult:
+    try:
+        from app.audio.device_manager import AudioDeviceError, check_settings, find_device
+    except OSError as exc:  # PortAudio no disponible
+        return CheckResult("Audio", Status.FAIL, f"sounddevice/PortAudio: {exc}")
+    try:
+        mic = find_device("input", settings.audio_input_device, settings.audio_host_api)
+        check_settings(mic, "input", 16000, 1)
+        speakers = find_device("output", settings.audio_output_device, settings.audio_host_api)
+    except AudioDeviceError as exc:
+        return CheckResult("Audio", Status.FAIL, str(exc))
+    return CheckResult("Audio", Status.OK, f"mic '{mic.name}' (16 kHz) | altavoces '{speakers.name}'")
+
+
+def check_voice_models(settings: Settings) -> CheckResult:
+    from app.voice import models
+
+    root = settings.models_path
+    expected = {
+        "wake word": models.wakeword_dir(root) / f"{settings.wake_model}.onnx",
+        "Piper": models.piper_voice_paths(root, settings.tts_voice)[0],
+        "Whisper": models.whisper_dir(root, settings.stt_model) / "model.bin",
+        "Silero VAD": models.silero_vad_path(),
+    }
+    missing = [name for name, path in expected.items() if not path.is_file()]
+    if missing:
+        return CheckResult(
+            "Modelos de voz",
+            Status.FAIL,
+            f"faltan: {', '.join(missing)}. Ejecuta: python -m app.voice --download-models",
+        )
+    return CheckResult(
+        "Modelos de voz",
+        Status.OK,
+        f"{settings.wake_model}, whisper {settings.stt_model}, piper {settings.tts_voice}",
+    )
+
+
+def check_cuda(settings: Settings) -> CheckResult:
+    if settings.stt_device == "cpu":
+        return CheckResult("GPU (CUDA)", Status.SKIP, "STT configurado en CPU")
+    try:
+        from app.voice.stt import cuda_available
+
+        available = cuda_available()
+    except Exception as exc:
+        return CheckResult("GPU (CUDA)", Status.WARN, f"no se pudo comprobar: {exc}")
+    if not available:
+        return CheckResult("GPU (CUDA)", Status.WARN, "sin GPU CUDA: Whisper usará CPU (más lento)")
+    return CheckResult("GPU (CUDA)", Status.OK, "ctranslate2 detecta la GPU NVIDIA")
+
+
 CHECKS: list[Callable[[Settings], CheckResult]] = [
     check_python,
     check_config,
@@ -172,6 +224,9 @@ CHECKS: list[Callable[[Settings], CheckResult]] = [
     check_git,
     check_github,
     check_claude,
+    check_audio,
+    check_voice_models,
+    check_cuda,
 ]
 
 
