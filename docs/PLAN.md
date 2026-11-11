@@ -13,7 +13,7 @@ Leyenda: `[x]` hecho · `[ ]` pendiente. Una fase a la vez: cada una necesita la
 - [x] Estructura (`brain/agent`, `brain/config`, `skills`, `mcp`, `scripts`, `docs`), `.gitignore`, `.env.example` y `README.md`
 - [x] `docs/ANALISIS_FACE.md`
 - [x] `docs/PLAN.md` y `docs/DECISIONES.md`
-- [ ] Push a `origin/main` (pendiente de la aprobación del usuario)
+- [x] Push de `main` y del tag `jarvis-wil-v1` a origin
 
 ## Fase 2: Cerebro (OpenClaw en WSL2)
 
@@ -34,6 +34,16 @@ Leyenda: `[x]` hecho · `[ ]` pendiente. Una fase a la vez: cada una necesita la
 
 ## Fase 3: Puente (face → OpenClaw)
 
+**Obligatorio antes de ejecutar face por primera vez** (ver `docs/ANALISIS_FACE.md` §3 y §5):
+
+- [ ] HUD solo en `127.0.0.1` (no `0.0.0.0`), con token de acceso para HTTP y WebSocket
+- [ ] `/api/providers` nunca devuelve API keys (enmascaradas). Las keys y el token de OpenClaw se leen solo desde `.env`, nunca desde `config.yaml`
+- [ ] `power_command` con confirmación explícita
+- [ ] `run_python` desactivado por defecto; si se activa, con confirmación
+- [ ] Wake word con onnxruntime directo (ONNX de openWakeWord), sin `openwakeword.model` ni sklearn, como en JARVIS-WIL (Smart App Control)
+
+Después:
+
 - [ ] Proveedor `openclaw` en `face/config.yaml` (`base_url http://127.0.0.1:18789/v1`, token desde `.env`, `user` estable)
 - [ ] Adaptar `main.py` según `docs/ANALISIS_FACE.md` §6 (no reenviar el historial local, timeout, sin fallback silencioso)
 - [ ] Endurecer face: HUD en `127.0.0.1` y que la API no devuelva claves
@@ -47,7 +57,11 @@ Leyenda: `[x]` hecho · `[ ]` pendiente. Una fase a la vez: cada una necesita la
 - [ ] STT en español (hoy `language="en"` está fijo en `stt.py`)
 - [ ] Listar las voces de Kokoro instaladas (masculinas británicas `bm_*` para inglés; `em_*`/`ef_*` para español) y elegir una
 - [ ] TTS: `lang_code` configurable (hoy `"a"` está fijo en `tts.py`)
-- [ ] Wake word con pronunciación española (ver las lecciones de JARVIS-WIL en DECISIONES.md)
+- [ ] Evaluar opciones para la wake word en español (ver las lecciones de JARVIS-WIL en DECISIONES.md) y registrar la decisión:
+  - entrenar un modelo propio de openWakeWord para "Jarvis" con pronunciación española (el entrenamiento necesita Linux/WSL2 o Colab)
+  - usar otra palabra de activación que el modelo detecte bien
+  - una tecla push-to-talk
+  - (referencia: el modo híbrido por transcripción de JARVIS-WIL funcionaba, pero gasta GPU continuamente)
 - [ ] Persona Jarvis: formal, breve, ingenioso, llama al usuario "señor"
 - [ ] Estados escuchando / pensando / hablando en el HUD
 
