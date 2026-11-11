@@ -1,0 +1,58 @@
+# --- Secretos ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# --- Node (por si algo se instala fuera de WSL) ---
+node_modules/
+
+# --- Modelos descargados ---
+models/
+*.onnx
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.gguf
+*.ckpt
+
+# --- Memoria / bases de datos ---
+face/jarvis/data/
+memory/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+chroma/
+chroma_db/
+
+# --- Audio, logs y temporales ---
+*.wav
+*.log
+logs/
+tmp/
+
+# --- Sistema / editores ---
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*.swp
+.claude/settings.local.json
