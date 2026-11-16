@@ -24,3 +24,15 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
 - Decisión: `/dev/uinput` ya tiene ACL de sesión (uaccess) → no se añade el usuario a `input` (evita acceso a todos los
   dispositivos de entrada); solo se asegura la carga de `uinput` al arrancar.
 - Falta: que el usuario lo ejecute y elija CUDA (descarga >2 GB) o Vulkan, y ufw sí/no.
+- 2026-11-16 (cont.): el script **no llegó a ejecutarse** (pacman.log sin actividad desde 2026-11-15 23:37; sin ollama,
+  ufw, drop-in ni linger). En paralelo hay un `yay -S objection` compilando `frida-v8` (V8, `ninja -j 1`, >1 h 40 min)
+  lanzado por `~/CyberLab/Scripts/install_02_aur.sh`: ocupa ~14 GB en `~/.cache/yay` y bajó el disco libre de 25 a 16 GB.
+  Hay que esperar a que termine antes de ejecutar 01-sistema.sh (bloqueo de la base de pacman).
+- Añadido `pacman-contrib` (paccache) al script.
+
+## 2026-11-16 · Bloque 3 — Entorno de usuario (⏸ llave en GitHub)
+- Hecho: Python 3.11.18 con uv; `npm config set prefix ~/.local`; `~/.local/bin` ya estaba en el PATH de bash y fish
+  (la terminal del usuario es fish); git global (`user.name`, `user.email`, `init.defaultBranch main`, `pull.ff only`);
+  llave `~/.ssh/id_ed25519` (ed25519, sin passphrase; se puede añadir con `ssh-keygen -p`); huella de github.com
+  verificada contra la oficial y añadida a `known_hosts`.
+- Falta: el usuario pega la llave pública en GitHub → `ssh -T git@github.com` → remoto a SSH.

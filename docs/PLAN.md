@@ -17,13 +17,13 @@ historial en `docs/BITACORA.md`.
 - [x] PLAN.md replanificado
 
 ## Bloque 2 — Paquetes del sistema ⏸ sudo
-- [ ] `scripts/arch/01-sistema.sh` (idempotente, con confirmación)
+- [x] `scripts/arch/01-sistema.sh` (idempotente, con confirmación; + pacman-contrib)
 - [ ] ⏸ El usuario ejecuta `sudo bash scripts/arch/01-sistema.sh`
 
 ## Bloque 3 — Entorno de usuario
-- [ ] `uv python install 3.11`
-- [ ] Prefijo npm en `~/.local`
-- [ ] git config global
+- [x] `uv python install 3.11` (3.11.18)
+- [x] Prefijo npm en `~/.local` (PATH ya lo tenía en bash y fish)
+- [x] git config global
 - [ ] Llave SSH ed25519 → ⏸ pegar en GitHub → `ssh -T git@github.com` → remoto a SSH
 
 ## Bloque 4 — Ollama

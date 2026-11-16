@@ -13,7 +13,7 @@ if [[ -z "$USUARIO" || "$USUARIO" == "root" ]]; then
 fi
 
 # Paquetes de los repos oficiales (verificados en extra/core el 2026-11-16).
-BASE=(base-devel git openssh jq ripgrep ffmpeg xdg-utils uv)
+BASE=(base-devel git openssh jq ripgrep ffmpeg xdg-utils uv pacman-contrib)  # pacman-contrib: paccache
 NODE=(nodejs npm)                       # Node 26 del sistema (D-006)
 AUDIO_VOZ=(portaudio espeak-ng)         # espeak-ng: fonemas para Kokoro en español
 ESCRITORIO=(wl-clipboard playerctl libnotify brightnessctl at-spi2-core ydotool)
