@@ -15,7 +15,7 @@ Nunca se commiteó un `.env`; `.env.example` solo tenía valores de configuraci�
 - `face/` se importa con `git subtree add --squash` desde `PanPenek/JarvisAi@main` (9dcf62b). Es nuestro código y se modifica libremente.
   Para traer cambios del original: `git subtree pull --prefix=face https://github.com/PanPenek/JarvisAi main --squash`.
 - `brain/openclaw/` es un submodule **superficial** (`shallow = true`) de `openclaw/openclaw`, solo para consultar código y docs.
-  No se edita. OpenClaw se instala desde su paquete oficial en WSL2 y se personaliza solo con configuración, el agente,
+  No se edita. OpenClaw se instala desde su paquete oficial (~~en WSL2~~ nativo en Arch desde D-005) y se personaliza solo con configuración, el agente,
   skills propias y MCP. Así se puede actualizar con sus parches de seguridad sin conflictos.
 - `face/.python-version` = `3.11`, para que face nunca use el Python 3.14 global.
 
@@ -38,7 +38,38 @@ Otras notas sobre el original:
 
 ## D-004: Opción A vs. B para las tools de face
 
-Pendiente (Fase 3). Ver `docs/ANALISIS_FACE.md` §6.
+Pendiente (Bloque 6). Con todo en la misma máquina (D-005), el usuario prefiere la **opción A**: OpenClaw ejecuta
+todas las acciones (shell + MCP) y face queda como voz + HUD. Se confirmará con una prueba real. Ver `docs/ANALISIS_FACE.md` §6.
+
+## D-005: Migración a Arch Linux nativo (2026-11-16)
+
+**Contexto:** WSL estaba corrupto (`Wsl/0x80070570`, nunca reparado) y el usuario migró el mismo PC de Windows a
+Arch Linux nativo (Hyprland, Wayland). Detalle del entorno en `docs/ENTORNO_ARCH.md`.
+
+**Decisión:**
+- face y OpenClaw corren **nativos en Arch**, en la misma máquina, como **servicios systemd de usuario**
+  (`loginctl enable-linger` para que el gateway viva sin sesión abierta).
+- Desaparece la frontera Windows ↔ WSL2: no hay problemas de `localhost` entre sistemas ni modo de red `mirrored`.
+- Repo en `~/Proyectos/Jarvis`. Scripts en bash (`scripts/*.sh`); lo que requiere root va en `scripts/arch/`
+  y lo ejecuta el usuario.
+- Quedan **obsoletos**: los scripts `.ps1`, `install.bat`/`start.bat`, Windows-MCP (CursorTouch), el OCR con PowerShell
+  de face y todo lo relativo a Smart App Control. Se reemplazan por equivalentes Linux (wpctl, playerctl,
+  brightnessctl, notify-send, wl-clipboard, ydotool y agent-sh/computer-use-linux) solo donde haga falta.
+- Siguen vigentes: arquitectura cara/cerebro, "fusionar sin mezclar código", reglas de seguridad y
+  los hallazgos de `docs/ANALISIS_FACE.md`.
+
+**Consecuencia para la opción A/B (D-004):** como OpenClaw y el escritorio están en la misma máquina, OpenClaw puede
+controlar el escritorio directamente (shell con aprobaciones + MCP), lo que hace natural la opción A.
+
+## D-006: Node 26 del sistema en lugar de Node 24 LTS (2026-11-16)
+
+La misión pedía Node 24 LTS. El sistema ya tiene `extra/nodejs` **26.13.1**, y OpenClaw (`package.json`
+`engines.node: ">=24.16.0 <25 || >=26.1.0"`, `docs/install/node-compatibility.md`) marca Node 26 como **recomendado**
+("arranque del gateway más rápido y menos memoria que Node 24"). Node 26 es además la línea LTS activa desde
+octubre de 2026. Instalar `nodejs-lts-krypton` (24.22.3) obligaría a quitar `nodejs` 26, y mise/fnm añadiría otra capa.
+
+**Decisión:** usar el `nodejs` 26 de los repos de Arch (se actualiza con `pacman -Syu`). npm global con prefijo `~/.local`.
+Si OpenClaw dejara de soportar 26, el plan B es `nodejs-lts-krypton`.
 
 ---
 
@@ -86,7 +117,9 @@ Un asistente propio en Python 3.12 (uv), escrito desde cero en unos 6.100 línea
 
 ### Qué se trae a la nueva arquitectura
 
-1. Comprobar Smart App Control al instalar face y tener preparado el plan B de onnxruntime para la wake word.
+1. ~~Comprobar Smart App Control al instalar face y tener preparado el plan B de onnxruntime para la wake word.~~
+   **Obsoleto (plan B de Windows, D-005):** en Arch no hay Smart App Control. Aun así, se usarán los ONNX de openWakeWord
+   con onnxruntime si el paquete `openwakeword` da problemas con Python 3.11.
 2. En la Fase 4, usar `large-v3-turbo` (o medirlo de nuevo), `language="es"`, `stt_prompt` y el filtro de alucinaciones.
 3. Planificar desde el principio la wake word para pronunciación española (modo híbrido o un modelo entrenado).
 4. Mantener el anti-eco half-duplex. face tiene un cooldown de 2 s, pero no silencia el micrófono mientras habla.

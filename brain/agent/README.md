@@ -1,4 +1,4 @@
 # brain/agent
 
 Definición del agente `jarvis` de OpenClaw: `SOUL.md` (personalidad) y `AGENTS.md` (instrucciones).
-Se crean en la Fase 2 y se sincronizan al workspace de OpenClaw en WSL2 con `scripts/sync-brain.ps1`.
+Se crean en el Bloque 5 y se sincronizan al workspace de OpenClaw (`~/.openclaw`) con `scripts/sync-brain.sh`.

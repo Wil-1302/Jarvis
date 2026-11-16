@@ -1,137 +1,121 @@
 # Proyecto JARVIS — instrucciones para Claude Code
 
-Eres el ingeniero principal de este proyecto. El usuario es el dueño. Habla con él en español.
+Eres el ingeniero principal de este proyecto. El usuario es el dueño. Habla con él en español y llámalo
+"señor" en los resúmenes.
+
+**Fuente de verdad de la migración:** [`docs/MISION_ARCH.md`](docs/MISION_ARCH.md). Si el contexto se compacta
+o empieza una sesión nueva, relee ese archivo y [`docs/BITACORA.md`](docs/BITACORA.md) antes de seguir.
 
 ## Qué estamos construyendo
 
-Un asistente personal estilo J.A.R.V.I.S. para Windows, hecho con dos piezas:
+Un asistente personal estilo J.A.R.V.I.S. para **Arch Linux nativo** (Hyprland, Wayland), hecho con dos piezas
+que corren en la misma máquina como **servicios systemd de usuario**:
 
-1. **La cara (`face/`)**: fork de PanPenek/JarvisAi (Python). Es lo que escucha, habla y se ve:
-   palabra de activación "Hey Jarvis" (openWakeWord), voz a texto (faster-whisper), texto a voz (Kokoro),
-   y un HUD web estilo Iron Man en http://localhost:7860. Corre en **Windows nativo**
-   (necesita micrófono, parlantes y acceso al escritorio).
-2. **El cerebro (`brain/`)**: OpenClaw (openclaw/openclaw, MIT). Gestiona modelos (Claude, GPT, Gemini, Ollama),
-   agentes, memoria, skills, servidores MCP y tareas programadas. Corre en **WSL2**, que es la ruta
-   recomendada por OpenClaw en Windows.
+1. **La cara (`face/`)**: fork de PanPenek/JarvisAi (Python 3.11). Escucha, habla y se ve:
+   wake word "Hey Jarvis" (ONNX de openWakeWord), voz a texto (faster-whisper), texto a voz (Kokoro)
+   y un HUD web estilo Iron Man en `http://127.0.0.1:7860` (con token). Servicio: `jarvis-face.service`.
+2. **El cerebro (`brain/`)**: OpenClaw (openclaw/openclaw, MIT), instalado desde su paquete oficial.
+   Gestiona modelos (Gemini Flash como principal, Ollama local, y opcionalmente Claude y GPT), el agente
+   `jarvis`, memoria, skills, servidores MCP, aprobaciones de exec y tareas programadas.
+   Servicio: el gateway de OpenClaw como servicio de usuario.
 
-**El puente:** la cara no decide nada por sí sola. Envía lo que dijo el usuario al Gateway de OpenClaw
-por su endpoint compatible con OpenAI:
+**El puente:** la cara no decide nada. Envía lo que dijo el usuario al Gateway de OpenClaw por su endpoint
+compatible con OpenAI:
 
-- `POST http://127.0.0.1:18789/v1/chat/completions` (desactivado por defecto).
-- Se activa con `gateway.http.endpoints.chatCompletions.enabled: true`.
-- Auth: `Authorization: Bearer <token del gateway>`.
-- El agente se elige en el campo `model` (`openclaw:<agentId>` u `openclaw/<agentId>` según la versión;
-  verifícalo con `GET /v1/models`).
-- El header `x-openclaw-model` permite cambiar el modelo por petición (base del "cambio de cerebro").
-- Si se envía un `user` estable, las peticiones comparten sesión.
+- `POST http://127.0.0.1:18789/v1/chat/completions` (se activa con
+  `gateway.http.endpoints.chatCompletions.enabled: true`).
+- Auth: `Authorization: Bearer <token del gateway>` (en `.env` como `OPENCLAW_GATEWAY_TOKEN`).
+- El agente va en `model` (`openclaw/jarvis`; verificar con `GET /v1/models`).
+- `x-openclaw-model: <proveedor/modelo>` cambia el modelo por petición (base del "cambio de cerebro").
+- Un `user` estable hace que las peticiones compartan sesión: el historial vive en OpenClaw.
 
-La cara ya soporta proveedores tipo `openai` con `base_url` en `config.yaml`, así que OpenClaw entra
-como un proveedor más.
+**Reparto de acciones (opción A, ver DECISIONES.md):** OpenClaw ejecuta todas las acciones (shell con
+aprobaciones + MCP). face queda como voz + HUD; sus tools locales se apagan en modo OpenClaw
+(salvo, quizá, medios y volumen por latencia).
 
 ```
-[Micrófono] → face (wake word → STT) ── HTTP ──> OpenClaw Gateway (WSL2) → modelo + skills + MCP
-[Parlantes] ← face (TTS + HUD)       <──────────────── respuesta ───────────────┘
+[Micrófono] → face (wake word → STT) ── HTTP 127.0.0.1 ──> OpenClaw Gateway → modelo + skills + MCP
+[Parlantes] ← face (TTS + HUD)       <────────────────── respuesta ───────────┘
 ```
 
 ## Principio clave: fusionar sin mezclar código
 
-- `face/` es NUESTRO código: se modifica libremente. Se importa con `git subtree` para poder traer
-  cambios del original si los hay.
-- `brain/openclaw/` es un **git submodule de solo lectura** (para consultar código y docs).
-  **No se edita el código de OpenClaw.** OpenClaw se instala desde su paquete oficial dentro de WSL2
-  y se personaliza SOLO con: configuración, el agente Jarvis (SOUL.md / AGENTS.md), skills propias
-  y servidores MCP. Motivo: OpenClaw recibe parches de seguridad frecuentes y tenemos que poder
-  actualizarlo sin conflictos.
+- `face/` es NUESTRO código: se modifica libremente. Se importó con `git subtree` para poder traer cambios
+  del original.
+- `brain/openclaw/` es un **git submodule de solo lectura** (para consultar código y docs), fijado en el tag
+  de la versión instalada. **No se edita el código de OpenClaw.** Se personaliza SOLO con: configuración,
+  el agente `jarvis` (`brain/agent/`), skills propias (`skills/`) y servidores MCP (`mcp/`).
+  `scripts/sync-brain.sh` copia todo eso hacia `~/.openclaw`. Motivo: OpenClaw recibe parches de seguridad
+  frecuentes y debemos poder actualizarlo sin conflictos.
 
-## Estructura objetivo
+## Estructura
 
 ```
-jarvis/
+~/Proyectos/Jarvis/
 ├── CLAUDE.md
 ├── README.md
-├── .gitignore
-├── .env.example          # plantillas de variables, NUNCA secretos reales
+├── .env.example          # nombres de variables, NUNCA secretos reales (.env real: permisos 600)
 ├── face/                 # fork de PanPenek/JarvisAi (git subtree)
 ├── brain/
 │   ├── openclaw/         # submodule de openclaw/openclaw (solo lectura)
 │   ├── agent/            # SOUL.md, AGENTS.md del agente "jarvis"
 │   └── config/           # plantilla de config de OpenClaw (sin tokens)
 ├── skills/               # NUESTRAS skills (SKILL.md); se sincronizan hacia OpenClaw
-├── mcp/                  # config de cada servidor MCP + notas de instalación
-├── scripts/              # setup.ps1, start-all.ps1, stop-all.ps1, doctor.ps1, sync-brain.ps1
-└── docs/                 # PLAN.md, ARQUITECTURA.md, ANALISIS_FACE.md, DECISIONES.md
+├── mcp/                  # config de cada servidor MCP + mcp/<nombre>.md
+├── scripts/
+│   ├── arch/             # scripts que requieren root (los ejecuta el usuario)
+│   ├── sync-brain.sh, start-all.sh, stop-all.sh, doctor.sh
+│   └── systemd/          # unidades de usuario (jarvis-face.service)
+└── docs/                 # MISION_ARCH, BITACORA, PLAN, DECISIONES, ENTORNO_ARCH, ANALISIS_FACE
 ```
 
-## Hoja de ruta
+## Modo de trabajo
 
-Trabaja **una fase a la vez**. Al terminar cada fase, detente, resume qué hiciste y explica cómo probarlo.
-No avances a la siguiente fase sin que el usuario lo apruebe.
-
-- **Fase 1 — Montaje.** Verificar requisitos; crear el monorepo; subtree de face; submodule de openclaw;
-  analizar el código de face; escribir docs/ANALISIS_FACE.md y docs/PLAN.md.
-- **Fase 2 — Cerebro.** Instalar Node 24 y OpenClaw en WSL2; onboarding; crear el agente `jarvis`;
-  activar el endpoint chatCompletions con auth por token, escuchando solo en loopback. Probar con curl
-  desde PowerShell (Windows → WSL2). Si localhost no llega a WSL2, documentar la solución
-  (por ejemplo, el modo de red "mirrored" de WSL).
-- **Fase 3 — Puente.** Añadir el proveedor `openclaw` en face/config.yaml (base_url
-  `http://127.0.0.1:18789/v1`, token leído desde `.env`, `user` estable para conservar sesión).
-  Decidir y documentar qué pasa con las 31 tools locales de face:
-  (A) desactivarlas en modo OpenClaw y que OpenClaw haga todo (escritorio vía Windows-MCP por HTTP), o
-  (B) enviarlas como function tools (la doc de OpenClaw indica que el endpoint acepta un subconjunto de
-  tools tipo función) para que el control del escritorio se ejecute en Windows nativo.
-  Probar ambas, recomendar una y registrar la decisión en docs/DECISIONES.md.
-- **Fase 4 — Personalidad y voz.** STT en español; elegir voz TTS (listar las voces de Kokoro instaladas:
-  masculinas británicas para inglés y voces en español); persona Jarvis: formal, breve, ingenioso,
-  llama al usuario "señor". Mostrar estados (escuchando / pensando / hablando) en el HUD.
-- **Fase 5 — Cambio de cerebro.** Comando de voz "Jarvis, usa Claude / GPT / Gemini / modo local"
-  → face envía `x-openclaw-model` o cambia el modelo del agente. Mostrar el cerebro activo en el HUD.
-- **Fase 6 — Cuerpo (MCP), uno por uno, cada uno con su prueba:**
-  Windows-MCP (CursorTouch), Spotify (requiere Spotify Premium para controlar la reproducción),
-  Office-Word-MCP-Server (GongRzhe), Google Calendar (nspady/google-calendar-mcp),
-  GitHub MCP oficial, Render MCP oficial, AWS (awslabs/mcp o su sucesor), Packet Tracer (Mats2208).
-- **Fase 7 — Skills propias.**
-  (a) Flujo web: pedir requisitos o deducirlos → construir → abrir en el navegador →
-  "Señor, ¿está bien o cambiamos algo?" → al aprobar, preguntar destino (GitHub / Render / AWS) y desplegar.
-  (b) Horario → calendario: leer imagen o PDF, proponer los eventos, preguntar si se repiten
-  (solo esta semana / N semanas / indefinido) y crearlos tras confirmación.
+- Autónomo, bloque por bloque y en orden (ver `docs/PLAN.md`). No preguntar lo que se puede averiguar.
+- `docs/BITACORA.md`: fecha, bloque, qué se hizo, qué falta, problemas.
+- Al cerrar cada bloque: commits pequeños en español, actualizar `docs/PLAN.md` y seguir.
+- Si algo falla dos veces con enfoques distintos: anotarlo, pasar a un bloque independiente y avisar al final.
+- **Solo se detiene (⏸)** para: sudo, escribir keys/tokens o iniciar sesión, descargas de >2 GB, acciones
+  destructivas/irreversibles/de pago, instalar un MCP o algo con control nuevo sobre el sistema, `git push`,
+  y decisiones de arquitectura no resueltas. En cada parada: comando exacto y qué debe ver el usuario.
 
 ## Reglas de seguridad (obligatorias)
 
-- Nunca commitear secretos. Tokens y API keys solo en `.env` (incluido en .gitignore).
-  Mantener `.env.example` con los nombres de variables y valores vacíos.
-- El Gateway de OpenClaw escucha solo en 127.0.0.1. Su token equivale a acceso total de operador:
-  tratarlo como una contraseña.
-- NO instalar skills de ClawHub ni de terceros sin que el usuario lea y apruebe el código.
-  Preferir skills propias en `skills/`.
-- Pedir confirmación antes de: comandos con administrador, borrar archivos, instalar software del sistema,
-  desplegar, enviar correos o mensajes, o cualquier cosa que cueste dinero.
-- Las skills con acciones destructivas o irreversibles deben pedir confirmación por voz.
-- Si la documentación actual de OpenClaw o de algún repo contradice este archivo, gana la documentación:
-  verifícalo y actualiza este archivo.
+- Nunca `pacman -Sy` solo: siempre `pacman -Syu --needed`.
+- Nunca `sudo npm` ni `sudo pip`. npm global con prefijo en `~/.local`.
+- Nunca `curl | bash` sin descargar, leer y resumir el script al usuario.
+- AUR: resumir el PKGBUILD (qué descarga, de dónde, qué ejecuta) y pedir OK.
+- Nada de skills de ClawHub o de terceros sin revisión y aprobación del usuario.
+- Secretos solo en `.env` (permisos 600) o en la config de OpenClaw. Nunca en el repo, en `config.yaml`,
+  en pantalla ni en mensajes (como mucho: "existe, N caracteres").
+- Gateway, HUD y MCP con HTTP: solo en `127.0.0.1`. El token del gateway equivale a acceso de operador.
+- Pedir confirmación antes de borrar, instalar, enviar o desplegar (en OpenClaw: aprobaciones de exec;
+  en skills: confirmación por voz).
+- Si la documentación actual de OpenClaw o de un repo contradice este archivo, gana la documentación:
+  verificar y actualizar este archivo.
 
-## Entorno
+## Entorno (ver `docs/ENTORNO_ARCH.md`)
 
-- Windows 10/11. Claude Code corre en Windows nativo desde la carpeta del repo.
-  Para ejecutar en WSL: `wsl -e bash -lc "<comando>"`.
-- Python 3.11 para face (venv en `face/.venv`). Node 24 dentro de WSL2 para OpenClaw.
-- La carpeta del repo NO debe estar dentro de OneDrive (evitar Escritorio/Documentos sincronizados).
+- Arch Linux, Hyprland/Wayland, RTX 4050 Laptop 6 GB (MUX en modo dGPU; ~1,6 GB de VRAM los usa el escritorio),
+  24 GB de RAM, PipeWire.
+- Python 3.11 para face (venv en `face/.venv`, gestionado con uv). Node 26 (sistema) para OpenClaw.
+- Ollama local en `127.0.0.1:11434`.
+- Herramientas de escritorio en Wayland: `wpctl`, `playerctl`, `brightnessctl`, `notify-send`, `wl-clipboard`,
+  `ydotool` (servicio de usuario).
 
 ## Convenciones
 
 - Commits pequeños y descriptivos en español, uno por paso lógico.
-- Los scripts de `scripts/` deben ser idempotentes y mostrar qué hacen antes de hacerlo.
-- Mantener docs/PLAN.md al día con [x] lo hecho y [ ] lo pendiente.
+- Los scripts de `scripts/` son idempotentes y muestran qué hacen antes de hacerlo. `doctor.sh` es solo lectura.
+- `docs/PLAN.md` al día con `[x]` lo hecho y `[ ]` lo pendiente.
 
 ## Notas sobre el repo original de face
 
 - URL correcta: https://github.com/PanPenek/JarvisAi (su README menciona otra URL de clonado; ignorarla).
-- Es un proyecto pequeño (pocos commits). El README dice MIT pero el repo no incluye archivo LICENSE:
-  anotarlo en docs/DECISIONES.md.
+- El README dice MIT pero el repo no incluye archivo LICENSE (ver DECISIONES.md D-003).
+- Hallazgos de seguridad y puntos de integración: `docs/ANALISIS_FACE.md` (siguen vigentes).
 
 ## Repo
 
-- Remoto: `git@github.com:Wil-1302/Jarvis.git` (**público**). Push solo cuando el usuario lo pida; nunca force push.
-- Tag `jarvis-wil-v1` = versión anterior (JARVIS-WIL: pipeline de voz local propio, commits c9e76a6 y 3f8d29c).
-- Smart App Control (activo en este PC) bloqueó `_liblinear.pyd` de sklearn, del que depende el paquete
-  `openwakeword`. En JARVIS-WIL se resolvió ejecutando los modelos ONNX de openWakeWord directamente con
-  onnxruntime. Revisar esto al instalar las dependencias de face.
+- Remoto: `github.com/Wil-1302/Jarvis` (**público**). Push solo cuando el usuario lo pida; nunca force push.
+- Tag `jarvis-wil-v1` = versión anterior (JARVIS-WIL).
