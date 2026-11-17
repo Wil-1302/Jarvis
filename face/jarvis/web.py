@@ -5,15 +5,79 @@ import json
 import threading
 from pathlib import Path
 
+import hmac
+import os
+import secrets
+
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from jarvis.tts import speak_streamed, stop_speaking, is_speaking
 
 _STATIC_DIR = Path(__file__).parent / "static"
+_REPO_ENV = Path(__file__).resolve().parents[2] / ".env"
+_HOST = "127.0.0.1"          # el HUD NUNCA escucha fuera de loopback (CLAUDE.md)
+_COOKIE = "jarvis_hud"
+_port = 7860
 
-app = FastAPI(title="Jarvis")
+app = FastAPI(title="Jarvis", docs_url=None, redoc_url=None, openapi_url=None)
+
+
+# ─── Seguridad del HUD: token (cookie HttpOnly) + Host/Origin locales ───
+
+def _hud_token() -> str:
+    """JARVIS_HUD_TOKEN del entorno o del .env; si no existe, se genera y se guarda (600)."""
+    tok = os.environ.get("JARVIS_HUD_TOKEN", "")
+    if tok:
+        return tok
+    lines = []
+    if _REPO_ENV.exists():
+        lines = _REPO_ENV.read_text(encoding="utf-8").splitlines()
+        for ln in lines:
+            if ln.startswith("JARVIS_HUD_TOKEN=") and len(ln) > 20:
+                tok = ln.split("=", 1)[1].strip()
+    if not tok:
+        tok = secrets.token_urlsafe(32)
+        fd = os.open(_REPO_ENV, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as f:
+            f.write(f"JARVIS_HUD_TOKEN={tok}\n")
+        os.chmod(_REPO_ENV, 0o600)
+    os.environ["JARVIS_HUD_TOKEN"] = tok
+    return tok
+
+
+def hud_url(port: int = 7860, con_token: bool = True) -> str:
+    base = f"http://{_HOST}:{port}/"
+    return f"{base}?token={_hud_token()}" if con_token else base
+
+
+def _ok_token(valor: str | None) -> bool:
+    return bool(valor) and hmac.compare_digest(valor, _hud_token())
+
+
+def _hosts_validos() -> set[str]:
+    return {f"127.0.0.1:{_port}", f"localhost:{_port}"}
+
+
+def _origen_valido(origin: str | None) -> bool:
+    return origin in {f"http://{h}" for h in _hosts_validos()}
+
+
+@app.middleware("http")
+async def _seguridad(request: Request, call_next):
+    if request.headers.get("host") not in _hosts_validos():     # anti DNS rebinding
+        return JSONResponse({"error": "host no permitido"}, status_code=421)
+    if request.url.path == "/" and _ok_token(request.query_params.get("token")):
+        resp = RedirectResponse("/", status_code=303)            # quita el token de la URL
+        resp.set_cookie(_COOKIE, _hud_token(), httponly=True, samesite="strict", path="/")
+        return resp
+    if not _ok_token(request.cookies.get(_COOKIE)):
+        return JSONResponse({"error": "no autorizado: abre el enlace con token que muestra JARVIS"},
+                            status_code=401)
+    if request.method not in ("GET", "HEAD") and not _origen_valido(request.headers.get("origin")):
+        return JSONResponse({"error": "origen no permitido"}, status_code=403)   # anti CSRF
+    return await call_next(request)
 _clients: list[WebSocket] = []
 _loop: asyncio.AbstractEventLoop | None = None
 
@@ -60,62 +124,27 @@ async def index():
 
 @app.get("/api/providers")
 async def api_providers():
+    """Cerebros disponibles (OpenClaw). Nunca devuelve keys ni URLs."""
     from jarvis.main import get_providers, get_active_provider
-    providers = get_providers()
-    active = get_active_provider()
-    result = {}
-    for key, prov in providers.items():
-        result[key] = {
-            "label": prov.get("label", key),
-            "model": prov.get("model", ""),
-            "type": prov.get("type", "ollama"),
-            "base_url": prov.get("base_url", ""),
-            "api_key": prov.get("api_key", ""),
-        }
-    return JSONResponse({"providers": result, "active": active})
+    result = {k: {"label": v.get("label", k), "model": v.get("model") or "", "type": "openclaw"}
+              for k, v in get_providers().items()}
+    return JSONResponse({"providers": result, "active": get_active_provider()})
 
 
 @app.post("/api/providers/{provider_key}")
 async def api_set_provider(provider_key: str):
     from jarvis.main import set_active_provider
-    ok = set_active_provider(provider_key)
-    if ok:
+    if set_active_provider(provider_key):
         return JSONResponse({"status": "ok", "active": provider_key})
-    return JSONResponse({"status": "error", "message": "Unknown provider"}, status_code=400)
+    return JSONResponse({"status": "error", "message": "Cerebro desconocido"}, status_code=400)
 
 
 @app.put("/api/providers/{provider_key}")
-async def api_upsert_provider(provider_key: str, request: Request):
-    """Add or update a provider."""
-    from jarvis.main import _load_config, _save_config
-    body = await request.json()
-    cfg = _load_config()
-    providers = cfg.setdefault("llm", {}).setdefault("providers", {})
-    providers[provider_key] = {
-        "type": body.get("type", "openai"),
-        "label": body.get("label", provider_key),
-        "model": body.get("model", ""),
-        "base_url": body.get("base_url", ""),
-    }
-    if body.get("api_key"):
-        providers[provider_key]["api_key"] = body["api_key"]
-    _save_config(cfg)
-    return JSONResponse({"status": "ok", "provider": provider_key})
-
-
 @app.delete("/api/providers/{provider_key}")
-async def api_delete_provider(provider_key: str):
-    """Delete a provider."""
-    from jarvis.main import _load_config, _save_config, get_active_provider
-    cfg = _load_config()
-    providers = cfg.get("llm", {}).get("providers", {})
-    if provider_key not in providers:
-        return JSONResponse({"status": "error", "message": "Not found"}, status_code=404)
-    if provider_key == get_active_provider():
-        return JSONResponse({"status": "error", "message": "Cannot delete active provider"}, status_code=400)
-    del providers[provider_key]
-    _save_config(cfg)
-    return JSONResponse({"status": "ok"})
+async def api_providers_readonly(provider_key: str):
+    """Los modelos y credenciales se gestionan en OpenClaw, no desde el HUD."""
+    return JSONResponse({"status": "error", "message": "Se gestiona en OpenClaw (brain/config)."},
+                        status_code=403)
 
 
 # ─── Settings APIs ───
@@ -129,12 +158,7 @@ async def api_get_settings():
         "tts": cfg.get("tts", {}),
         "stt": cfg.get("stt", {}),
         "wake_word": cfg.get("wake_word", {}),
-        "context": cfg.get("context", {}),
-        "llm": {
-            "temperature": cfg.get("llm", {}).get("temperature", 0.7),
-            "active_provider": cfg.get("llm", {}).get("active_provider", "ollama"),
-        },
-        "tools": cfg.get("tools", {}),
+        "llm": {"active_provider": cfg.get("llm", {}).get("active_brain", "auto")},
     })
 
 
@@ -151,13 +175,6 @@ async def api_update_settings(request: Request):
         cfg.setdefault("stt", {}).update(body["stt"])
     if "wake_word" in body:
         cfg.setdefault("wake_word", {}).update(body["wake_word"])
-    if "context" in body:
-        cfg.setdefault("context", {}).update(body["context"])
-    if "llm" in body:
-        if "temperature" in body["llm"]:
-            cfg.setdefault("llm", {})["temperature"] = body["llm"]["temperature"]
-    if "tools" in body:
-        cfg.setdefault("tools", {}).update(body["tools"])
 
     _save_config(cfg)
     return JSONResponse({"status": "ok"})
@@ -182,9 +199,14 @@ async def api_toggle_mute():
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
+    # El middleware HTTP no cubre WebSocket: mismas comprobaciones aquí (anti CSWSH).
+    if (ws.headers.get("host") not in _hosts_validos() or not _origen_valido(ws.headers.get("origin"))
+            or not _ok_token(ws.cookies.get(_COOKIE))):
+        await ws.close(code=4401)
+        return
     await ws.accept()
     _clients.append(ws)
-    await ws.send_text(json.dumps({"type": "connected", "message": "Jarvis online."}))
+    await ws.send_text(json.dumps({"type": "connected", "message": "JARVIS en línea."}))
     try:
         while True:
             data = await ws.receive_text()
@@ -198,7 +220,7 @@ async def websocket_endpoint(ws: WebSocket):
                 if _is_stop_command(user_text):
                     from jarvis.main import abort_all
                     abort_all()
-                    await ws.send_text(json.dumps({"type": "response", "text": "Stopped."}))
+                    await ws.send_text(json.dumps({"type": "response", "text": "Detenido."}))
                     continue
 
                 from jarvis.main import _process_request, _Aborted
@@ -210,9 +232,9 @@ async def websocket_endpoint(ws: WebSocket):
                     from jarvis.main import _speak_streamed_if_unmuted
                     threading.Thread(target=_speak_streamed_if_unmuted, args=(response,), daemon=True).start()
                 except _Aborted:
-                    await ws.send_text(json.dumps({"type": "response", "text": "Stopped."}))
+                    await ws.send_text(json.dumps({"type": "response", "text": "Detenido."}))
                 except Exception as e:
-                    await ws.send_text(json.dumps({"type": "response", "text": f"Error: {e}"}))
+                    await ws.send_text(json.dumps({"type": "response", "text": "Error al procesar la orden."}))
 
             elif msg.get("type") == "interrupt":
                 from jarvis.main import abort_all
@@ -224,14 +246,17 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 def start_web_background(port: int = 7860) -> None:
-    """Launch web UI in a daemon thread. Non-blocking."""
+    """Lanza el HUD en un hilo (solo 127.0.0.1, con token)."""
+    global _port
+    _port = port
+    _hud_token()
     from jarvis.main import register_event_listener
     register_event_listener(_broadcast_to_ws)
 
     def _run():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning")
+        config = uvicorn.Config(app, host=_HOST, port=port, log_level="warning")
         server = uvicorn.Server(config)
         loop.run_until_complete(server.serve())
 

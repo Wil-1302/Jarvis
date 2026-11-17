@@ -38,20 +38,39 @@ def _get_model(force_cpu=False):
             raise
     return _model
 
+# Frases que Whisper "alucina" con silencio o ruido (sobre todo en español).
+_ALUCINACIONES = (
+    "gracias por ver", "suscríbete", "subtítulos", "amara.org", "gracias por su atención",
+    "thanks for watching", "thank you for watching",
+)
+
+
+def _transcribe(model, audio: np.ndarray) -> str:
+    stt = _load_config()["stt"]
+    segments, _ = model.transcribe(
+        audio, beam_size=5, language=stt.get("language", "es"),
+        initial_prompt=stt.get("prompt") or None, vad_filter=True,
+        condition_on_previous_text=False,
+    )
+    partes = []
+    for seg in segments:
+        t = seg.text.strip()
+        if seg.no_speech_prob > 0.8 or any(a in t.lower() for a in _ALUCINACIONES):
+            continue
+        partes.append(t)
+    return " ".join(partes).strip()
+
+
 def transcribe_audio(audio: np.ndarray) -> str:
     """Transcribe a float32 numpy audio array (16kHz mono) to text."""
     try:
-        model = _get_model()
-        segments, _ = model.transcribe(audio, beam_size=5, language="en")
-        return " ".join(seg.text.strip() for seg in segments).strip()
+        return _transcribe(_get_model(), audio)
     except Exception as e:
         # If CUDA worked for loading but fails during inference, retry on CPU
         if _model_device != "cpu":
             print(f"[STT] {_model_device} transcription failed ({e}), reloading on CPU")
             try:
-                model = _get_model(force_cpu=True)
-                segments, _ = model.transcribe(audio, beam_size=5, language="en")
-                return " ".join(seg.text.strip() for seg in segments).strip()
+                return _transcribe(_get_model(force_cpu=True), audio)
             except Exception as e2:
                 print(f"[STT] CPU transcription also failed: {e2}")
                 return ""

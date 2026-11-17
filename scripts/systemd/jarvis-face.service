@@ -1,0 +1,20 @@
+# JARVIS face (voz + HUD). Instalada por scripts/install-face.sh en ~/.config/systemd/user/.
+[Unit]
+Description=JARVIS face (voz + HUD en 127.0.0.1:7860)
+After=openclaw-gateway.service pipewire.service wireplumber.service
+Wants=openclaw-gateway.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Proyectos/Jarvis/face
+ExecStart=%h/Proyectos/Jarvis/face/run.sh
+Environment=JARVIS_OPEN_BROWSER=0
+Restart=on-failure
+RestartSec=5
+# face no ejecuta acciones (opción A); aun así, mínimo privilegio.
+NoNewPrivileges=yes
+InaccessiblePaths=-%h/.ssh -%h/.gnupg -%h/.local/share/keyrings -%h/CyberLab -%h/.claude -%h/.openclaw
+InaccessiblePaths=-%h/.config/google-chrome -%h/.config/chromium -%h/.config/BraveSoftware -%h/.mozilla
+
+[Install]
+WantedBy=default.target

@@ -1,33 +1,34 @@
+# JARVIS face — config (sin secretos: el token del gateway y el del HUD viven en ../.env, permisos 600).
 wake_word:
-  model: hey_jarvis
+  model: hey_jarvis          # ONNX de openWakeWord (pronunciado en inglés)
   threshold: 0.5
   chunk_size: 1280
 stt:
-  model: small
-  device: cuda
-  compute_type: int8
+  model: large-v3-turbo      # mejor WER en español en la prueba de JARVIS-WIL (22 %, 0,30 s)
+  device: cuda               # si falla, stt.py cae a CPU int8 solo
+  compute_type: float16
+  language: es
+  prompt: "Jarvis, Spotify, YouTube, Chrome, LibreOffice, Writer, Steam."
 llm:
-  active_provider: ollama
-  temperature: 0.7
-  providers:
-    ollama:
-      type: ollama
-      label: Ollama (Local)
-      model: qwen3:8b
-      base_url: http://localhost:11434
-context:
-  max_messages: 10
-  summarize_after: 8
-  max_tokens: 2500
+  active_brain: auto
+  openclaw:
+    base_url: http://127.0.0.1:18789/v1
+    agent: openclaw/jarvis
+    user: face:jarvis        # sesión estable en OpenClaw (el historial vive allí)
+    timeout: 180
+    model: null              # null = el que diga OpenClaw (Claude, con fallback a GPT)
+    backup_model: openai/gpt-6-astra
+  brains:                    # cambio de cerebro (x-openclaw-model); Bloque 8
+    auto:   {label: "Automático (Claude → GPT)", model: null}
+    claude: {label: "Claude Opus 5.5", model: anthropic/claude-opus-5-5}
+    gpt:    {label: "ChatGPT (Codex)", model: openai/gpt-6-astra}
 tts:
-  voice: af_heart
-  speed: 1.1
-memory:
-  db_path: jarvis/data/memory.db
-  chroma_path: jarvis/data/chroma
-  top_k: 3
-tools:
-  allowed_paths:
-  - ~/Documents
-  - ~/Desktop
-  code_timeout: 10
+  lang_code: e               # e = español
+  voice: em_alex             # voces españolas de Kokoro: ef_dora, em_alex, em_santa
+  speed: 1.05
+voz:
+  saludo_inicio: "JARVIS en línea, señor."
+  saludo_activacion: "¿Sí, señor?"
+hud:
+  port: 7860
+  open_browser: true

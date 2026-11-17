@@ -16,18 +16,16 @@ _voice_tensor = None
 _speaking = threading.Event()  # set while audio is playing
 _interrupt = threading.Event()  # set to stop streaming
 
-_LOCAL_PTH = Path.home() / "Downloads" / "kokoro-v1_0.pth"
+_REPO_ID = "hexgrad/Kokoro-82M"
 
 def _get_pipeline():
+    """Kokoro en CPU (D-008: la GPU queda para Whisper). lang_code: 'e' español, 'a' inglés EE. UU."""
     global _pipeline
     if _pipeline is None:
         from kokoro import KPipeline, KModel
-        repo_id = "hexgrad/Kokoro-82M"
-        if _LOCAL_PTH.exists():
-            kmodel = KModel(repo_id=repo_id, model=str(_LOCAL_PTH)).to("cpu").eval()
-            _pipeline = KPipeline(lang_code="a", repo_id=repo_id, model=kmodel)
-        else:
-            _pipeline = KPipeline(lang_code="a", repo_id=repo_id)
+        lang = _load_config()["tts"].get("lang_code", "e")
+        kmodel = KModel(repo_id=_REPO_ID).to("cpu").eval()
+        _pipeline = KPipeline(lang_code=lang, repo_id=_REPO_ID, model=kmodel)
     return _pipeline
 
 def _get_voice():
@@ -36,24 +34,15 @@ def _get_voice():
     if _voice_tensor is None:
         import torch
         cfg = _load_config()
-        voice_name = cfg["tts"]["voice"]
-        local_voice = _LOCAL_PTH.parent / f"{voice_name}.pt"
-        if local_voice.exists():
-            _voice_tensor = torch.load(str(local_voice), weights_only=True)
-        else:
-            from huggingface_hub import hf_hub_download
-            path = hf_hub_download(
-                repo_id="hexgrad/Kokoro-82M",
-                filename=f"voices/{voice_name}.pt",
-                local_files_only=True,
-            )
-            _voice_tensor = torch.load(path, weights_only=True)
+        from huggingface_hub import hf_hub_download
+        path = hf_hub_download(repo_id=_REPO_ID, filename=f"voices/{cfg['tts']['voice']}.pt")
+        _voice_tensor = torch.load(path, weights_only=True)
     return _voice_tensor
 
 
 def _split_sentences(text: str) -> list[str]:
     """Split text into sentences for streaming TTS."""
-    parts = re.split(r'(?<=[.!?])\s+', text)
+    parts = re.split(r'(?<=[.!?…:;])\s+', text)
     return [p.strip() for p in parts if p.strip()]
 
 

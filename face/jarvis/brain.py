@@ -1,0 +1,118 @@
+"""Puente face → OpenClaw (cerebro). Ver CLAUDE.md y docs/DECISIONES.md (D-004 opción A, D-008).
+
+face no decide nada: manda el texto del usuario al agente `jarvis` del Gateway de OpenClaw por su
+endpoint compatible con OpenAI. El historial vive en OpenClaw (un `user` estable = misma sesión),
+así que aquí solo se envía el mensaje nuevo.
+
+Failover en dos niveles:
+1. OpenClaw: `agents.defaults.model.fallbacks` (Claude → GPT) salta solo con límites, auth o timeouts.
+2. face: si la petición aun así falla, reintenta UNA vez forzando el cerebro de respaldo con
+   `x-openclaw-model` y avisa por voz ("Señor, cambio al cerebro de respaldo").
+"""
+from __future__ import annotations
+
+import os
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
+import httpx
+
+_REPO_ENV = Path(__file__).resolve().parents[2] / ".env"
+AVISO_RESPALDO = "Señor, cambio al cerebro de respaldo."
+
+# Errores que justifican cambiar de cerebro (límites, cuotas, auth del proveedor, caídas).
+_PATRON_FALLO_MODELO = re.compile(
+    r"all models failed|usage|limit|quota|credits|rate|overload|capacity|unavailable|timed? ?out|"
+    r"authentication|no route-compatible",
+    re.I,
+)
+
+
+class BrainError(RuntimeError):
+    """El cerebro no respondió (ni el principal ni el de respaldo)."""
+
+
+def _leer_env(nombre: str) -> str:
+    """Variable de entorno o, si no está, del .env del repo (permisos 600). Nunca se imprime."""
+    valor = os.environ.get(nombre, "")
+    if valor:
+        return valor
+    try:
+        for linea in _REPO_ENV.read_text(encoding="utf-8").splitlines():
+            if linea.startswith(f"{nombre}="):
+                return linea.split("=", 1)[1].strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return ""
+
+
+@dataclass
+class Brain:
+    base_url: str = "http://127.0.0.1:18789/v1"
+    agent: str = "openclaw/jarvis"
+    user: str = "face:jarvis"
+    timeout: float = 180.0
+    model_override: str | None = None        # cerebro elegido por voz (x-openclaw-model); None = el de OpenClaw
+    backup_model: str = "openai/gpt-6-astra"
+    on_backup: Callable[[str], None] | None = None   # se llama con AVISO_RESPALDO antes de reintentar
+
+    @classmethod
+    def from_config(cls, cfg: dict, on_backup: Callable[[str], None] | None = None) -> "Brain":
+        oc = (cfg.get("llm") or {}).get("openclaw") or {}
+        return cls(
+            base_url=oc.get("base_url", cls.base_url),
+            agent=oc.get("agent", cls.agent),
+            user=oc.get("user", cls.user),
+            timeout=float(oc.get("timeout", cls.timeout)),
+            model_override=oc.get("model") or None,
+            backup_model=oc.get("backup_model", cls.backup_model),
+            on_backup=on_backup,
+        )
+
+    def _post(self, text: str, model: str | None) -> str:
+        token = _leer_env("OPENCLAW_GATEWAY_TOKEN")
+        if not token:
+            raise BrainError("Falta OPENCLAW_GATEWAY_TOKEN en .env (ejecuta scripts/sync-brain.sh).")
+        headers = {"Authorization": f"Bearer {token}"}
+        if model:
+            headers["x-openclaw-model"] = model
+        body = {"model": self.agent, "user": self.user,
+                "messages": [{"role": "user", "content": text}]}
+        try:
+            r = httpx.post(f"{self.base_url}/chat/completions", json=body, headers=headers,
+                           timeout=httpx.Timeout(self.timeout, connect=5.0))
+        except httpx.ConnectError as e:
+            raise ConnectionError("El gateway de OpenClaw no responde en 127.0.0.1:18789.") from e
+        except httpx.TimeoutException as e:
+            raise TimeoutError(f"El cerebro tardó más de {self.timeout:.0f} s.") from e
+        try:
+            data = r.json()
+        except ValueError:
+            data = {}
+        if r.status_code >= 400 or data.get("error"):
+            err = data.get("error") or {}
+            msg = err.get("message") if isinstance(err, dict) else str(err)
+            raise BrainError(f"HTTP {r.status_code}: {msg or r.text[:300]}")
+        content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
+        return content or "Hecho, señor."
+
+    def ask(self, text: str) -> tuple[str, bool]:
+        """Devuelve (respuesta, usó_respaldo_forzado)."""
+        try:
+            return self._post(text, self.model_override), False
+        except (ConnectionError, TimeoutError):
+            # Gateway caído: cambiar de modelo no sirve. Timeout: el turno pudo ejecutar acciones
+            # (p. ej. crear un documento) y repetirlo con otro modelo las duplicaría.
+            raise
+        except BrainError as e:
+            if self.model_override == self.backup_model or not _PATRON_FALLO_MODELO.search(str(e)):
+                raise BrainError(str(e)) from e
+            print(f"[Brain] Fallo del cerebro principal ({e}); reintento con {self.backup_model}")
+            if self.on_backup:
+                self.on_backup(AVISO_RESPALDO)
+            try:
+                return self._post(text, self.backup_model), True
+            except Exception as e2:
+                raise BrainError(f"Principal: {e} | Respaldo: {e2}") from e2
