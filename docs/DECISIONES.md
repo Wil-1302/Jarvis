@@ -123,3 +123,15 @@ Un asistente propio en Python 3.12 (uv), escrito desde cero en unos 6.100 línea
 2. En la Fase 4, usar `large-v3-turbo` (o medirlo de nuevo), `language="es"`, `stt_prompt` y el filtro de alucinaciones.
 3. Planificar desde el principio la wake word para pronunciación española (modo híbrido o un modelo entrenado).
 4. Mantener el anti-eco half-duplex. face tiene un cooldown de 2 s, pero no silencia el micrófono mientras habla.
+
+## D-007: Aislamiento de rutas sensibles frente a OpenClaw (2026-11-17) — ⏸ propuesta
+- **Contexto:** el gateway corre con el usuario `wil`; OpenClaw confina las tools de archivos al workspace, pero
+  no puede impedir por rutas lo que haga `exec` en el host (lo dice su propia doc). Detalle y pruebas en
+  `docs/AISLAMIENTO_OPENCLAW.md`.
+- **Propuesta:** opción A = capa 1 (config de OpenClaw + allowlist de exec sin intérpretes ni `systemd-run`/`busctl`)
+  + capa 2 (drop-in systemd con `InaccessiblePaths` sobre `~/.ssh`, `~/.gnupg`, llaveros, perfiles de navegadores,
+  `~/CyberLab` y credenciales). Probado: bloquea lectura/escritura y mantiene el bus de sesión. Evasión conocida:
+  `systemd-run --user` por el bus → se cierra exigiendo aprobación humana para esos comandos.
+- **Alternativas:** B = sandbox Podman para exec; C = usuario del sistema `jarvis` separado (más fuerte, pierde el
+  escritorio y necesita un puente).
+- **Estado:** pendiente de confirmación del usuario.

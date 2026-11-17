@@ -16,17 +16,22 @@ historial en `docs/BITACORA.md`.
 - [x] DECISIONES: D-005 (migración), D-006 (Node 26), plan B de Windows marcado obsoleto
 - [x] PLAN.md replanificado
 
-## Bloque 2 — Paquetes del sistema ⏸ sudo
+## Bloque 2 — Paquetes del sistema
 - [x] `scripts/arch/01-sistema.sh` (idempotente, con confirmación; + pacman-contrib)
-- [ ] ⏸ El usuario ejecuta `sudo bash scripts/arch/01-sistema.sh`
+- [x] Ejecutado 2026-11-17: sistema actualizado, Ollama **CUDA** en 127.0.0.1, uinput (linger lo activó Claude después)
+- [ ] ⏸ ufw: no se instaló (se respondió "no") → volver a ejecutar el script eligiendo 1 y "s"
+- [ ] ⏸ Decidir: mantener CUDA (5,4 GB) o pasar a Vulkan
 
 ## Bloque 3 — Entorno de usuario
 - [x] `uv python install 3.11` (3.11.18)
 - [x] Prefijo npm en `~/.local` (PATH ya lo tenía en bash y fish)
 - [x] git config global
-- [ ] Llave SSH ed25519 → ⏸ pegar en GitHub → `ssh -T git@github.com` → remoto a SSH
+- [x] Llave SSH ed25519 generada
+- [ ] ⏸ La llave en GitHub no es esta (huella distinta) → pegar `~/.ssh/id_ed25519.pub` → `ssh -T` → remoto a SSH
 
 ## Bloque 4 — Ollama
+- [x] GPU detectada por Ollama (CUDA, 4,1 GiB libres)
+- [ ] ⏸ Descarga de `qwen3:4b-instruct` (2,5 GB > 2 GB). Alternativa sin parada: `qwen2.5:3b` (1,9 GB)
 - [ ] Modelo con tools en ≤ ~4,5 GB de VRAM libres (ref. `qwen3:4b-instruct`)
 - [ ] `ollama ps` en GPU; `num_ctx` según OpenClaw
 
@@ -37,6 +42,11 @@ historial en `docs/BITACORA.md`.
 - [ ] Agente `jarvis` + `brain/agent/SOUL.md` mínimo + `scripts/sync-brain.sh`
 - [ ] chatCompletions activado; token a `.env` sin imprimirlo
 - [ ] Aprobaciones de exec (borrar/instalar/enviar/desplegar)
+- [x] Análisis de aislamiento de rutas sensibles: `docs/AISLAMIENTO_OPENCLAW.md` (OpenClaw no confina `exec` por rutas)
+- [x] Plantilla del encierro systemd `scripts/systemd/openclaw-gateway.service.d/jarvis-aislamiento.conf` (probada)
+- [ ] Capa 1: workspace propio, `tools.fs.workspaceOnly`, modo `guarded`, elevated off, allowlist sin intérpretes/systemd-run/busctl/ydotool
+- [ ] Capa 2: `sync-brain.sh` instala el drop-in; verificar con `systemctl --user show openclaw-gateway -p InaccessiblePaths`
+- [ ] ⏸ D-007: opción A (recomendada), B (Podman) o C (usuario separado)
 - [ ] Pruebas: `/v1/models`, "hola" con Gemini y con Ollama, `openclaw security audit` ⏸
 
 ## Bloque 6 — Cara en Linux + puente

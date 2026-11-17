@@ -36,3 +36,21 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
   llave `~/.ssh/id_ed25519` (ed25519, sin passphrase; se puede añadir con `ssh-keygen -p`); huella de github.com
   verificada contra la oficial y añadida a `known_hosts`.
 - Falta: el usuario pega la llave pública en GitHub → `ssh -T git@github.com` → remoto a SSH.
+
+## 2026-11-17 · Verificación del Bloque 2 y SSH
+- `01-sistema.sh` sí se ejecutó (16:35–16:45): `pacman -Syu` completo, `pacman-contrib`, `ollama` + **`ollama-cuda` +
+  `cuda` 13.5** (se eligió la opción 1, no Vulkan), drop-in de Ollama (escucha solo en 127.0.0.1:11434, GPU detectada
+  con 4,1 GiB libres), uinput cargado. **ufw no se instaló** (en el pacman no aparece: se respondió "no").
+  **linger quedó en `no`** (el script se cortó en el paso 4, sin mensaje en el journal); Claude lo activó con
+  `loginctl enable-linger wil` (polkit lo permite sin sudo) → `Linger=yes`.
+- Disco: 24 GB libres; `~/.cache/yay` aún ocupa 7,6 GB; `/opt/cuda` 5,4 GB.
+- SSH: `Permission denied (publickey)`. La única llave en GitHub (`SHA256:2gfWxS6Q…`) no es la de esta máquina
+  (`SHA256:LKd1PL0x…`, comentario `wil@archwil-jarvis`). El remoto sigue en HTTPS.
+- Bloque 4: `qwen3:4b-instruct` pesa 2,5 GB → parada por la regla de >2 GB.
+
+## 2026-11-17 · Bloque 5 (adelanto) — Aislamiento de rutas sensibles
+- Leída la doc de sandbox, permission modes, tool policy, exec approvals y fs-safe. OpenClaw confina
+  `read`/`write`/`edit`/`apply_patch` al workspace, pero no `exec` por rutas.
+- Probado `InaccessiblePaths` en unidades de usuario (systemd 262): bloquea `~/.ssh`, `~/CyberLab`, navegadores, etc.;
+  playerctl/notify-send siguen funcionando. Evasión confirmada vía `systemd-run --user`.
+- Hecho: `docs/AISLAMIENTO_OPENCLAW.md`, plantilla del drop-in, D-007 (propuesta, ⏸).
