@@ -54,3 +54,24 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
 - Probado `InaccessiblePaths` en unidades de usuario (systemd 262): bloquea `~/.ssh`, `~/CyberLab`, navegadores, etc.;
   playerctl/notify-send siguen funcionando. Evasión confirmada vía `systemd-run --user`.
 - Hecho: `docs/AISLAMIENTO_OPENCLAW.md`, plantilla del drop-in, D-007 (propuesta, ⏸).
+
+## 2026-11-17 · Cambio de planes (D-008) y Bloque 5 — OpenClaw
+- Registrado el cambio en MISION_ARCH, DECISIONES (D-007 resuelta, D-008), PLAN y CLAUDE.md.
+- Ollama: face no necesita `/opt/cuda` (`cuda` solo lo pide `ollama-cuda`; faster-whisper usa wheels con CUDA propio).
+  `01-sistema.sh` ya no instala Ollama y lo desinstala si está; ufw siempre. ⏸ El usuario lo ejecuta con sudo.
+- OpenClaw 2026.11.5 (`npm i -g --allow-scripts=openclaw`, prefijo `~/.local`). Submodule en `v2026.11.5`.
+- Onboarding sin interacción: `--auth-choice anthropic-cli` reutiliza el login de Claude Code (plan Pro).
+- Problema: `gateway install` falla ("Managed service artifacts changed during publication") si el drop-in ya existe;
+  solución: instalar la unidad, parar, poner el drop-in, `daemon-reload`, arrancar. `sync-brain.sh` lo mantiene.
+- El CLI de Claude funciona dentro del encierro (probado con `claude -p`). `~/.claude` queda accesible.
+- La política por defecto de exec era `security=full, ask=off`: cerrada con la allowlist (`brain/config/exec-approvals.json`).
+- `argPattern` no usa la bandera `u`: `\p{L}` no funciona → clases explícitas con acentos.
+- Hyprland 0.57 usa config Lua: `hyprctl dispatch exec` falla; se usa `hyprctl dispatch 'hl.dsp.exec_cmd("…")'`.
+  Las apps se lanzan como hijas de Hyprland (fuera del encierro) para que Chrome vea su perfil.
+- `openclaw config get` redacta secretos: el token se lee del JSON con jq. Token en `.env` (600, 48 caracteres).
+- Fable 5.2 → "out of usage credits" en Pro; primary Opus 5.5. OpenClaw ya intentó el fallback por sí solo en ese
+  error (falló solo porque Codex aún no tiene login) → el failover nativo salta con límites de uso.
+- Pruebas por curl: 401 sin token; `/v1/models` con `openclaw/jarvis`; saludo en español; "abre la calculadora de
+  libreoffice" → Calc abierto; receta de tortilla → `~/Documentos/Jarvis/Receta tortilla de patatas.docx` abierto en
+  Writer (26 s); aislamiento: read fuera del workspace y exec fuera de la allowlist, denegados.
+- Falta: ⏸ login de Codex; prueba de failover con GPT; face.

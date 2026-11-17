@@ -16,7 +16,8 @@ Rutas a proteger (existen hoy en la máquina, salvo las marcadas):
 | `~/.gnupg`, `~/.local/share/keyrings` | llaves GPG, llavero de GNOME (contraseñas guardadas) |
 | `~/.config/{google-chrome,chromium,BraveSoftware,vivaldi,microsoft-edge,opera}`, `~/.mozilla` (no existe) | cookies y contraseñas de navegadores |
 | `~/CyberLab` | laboratorio de seguridad |
-| `~/.aws`, `~/.config/gh`, `~/.claude`, `~/.git-credentials`, `~/.netrc`, `~/.docker`, `~/.kube` | credenciales de otras herramientas (algunas no existen; se bloquean igual con `-`) |
+| `~/.aws`, `~/.config/gh`, `~/.git-credentials`, `~/.netrc`, `~/.docker`, `~/.kube`, `.env` del repo | credenciales de otras herramientas (algunas no existen; se bloquean igual con `-`) |
+| `~/.claude`, `~/.claude.json` | **no se bloquean**: el runtime `claude-cli` los necesita (D-008). Protegidos solo por la capa 1 |
 
 ## Qué ofrece OpenClaw (según su doc)
 
@@ -46,7 +47,14 @@ Unidad transitoria de usuario con `InaccessiblePaths=`:
   `busctl`/`gdbus`/`dbus-send` hacia `org.freedesktop.systemd1`, o `ydotool` escribiendo en una terminal abierta.
 - Quitar `AF_UNIX` cierra esa vía pero rompe el bus de sesión (playerctl falla) → no sirve para JARVIS.
 
-## Propuesta (defensa en capas)
+## Aplicado el 2026-11-17 (opción A + refuerzos a-e, D-007/D-008)
+
+Estado real: `brain/config/jarvis.patch.json5`, `brain/config/exec-approvals.json` y el drop-in, instalados por
+`scripts/sync-brain.sh`. Verificado con el agente: `read /etc/hostname` → "Path escapes sandbox root";
+`exec uname -r` → "exec denied … askFallback=deny"; `security audit` → 0 críticos. Las peticiones por HTTP son
+*headless*: lo que no esté en la allowlist se deniega directamente (no hay a quién preguntar).
+
+## Diseño (defensa en capas)
 
 **Capa 1 — configuración de OpenClaw** (en `brain/config/`, se aplica en el onboarding):
 

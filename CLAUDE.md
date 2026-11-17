@@ -15,7 +15,7 @@ que corren en la misma máquina como **servicios systemd de usuario**:
    wake word "Hey Jarvis" (ONNX de openWakeWord), voz a texto (faster-whisper), texto a voz (Kokoro)
    y un HUD web estilo Iron Man en `http://127.0.0.1:7860` (con token). Servicio: `jarvis-face.service`.
 2. **El cerebro (`brain/`)**: OpenClaw (openclaw/openclaw, MIT), instalado desde su paquete oficial.
-   Gestiona modelos (Gemini Flash como principal, Ollama local, y opcionalmente Claude y GPT), el agente
+   Gestiona modelos (Claude Opus 5.5 vía el login de Claude Code como principal y ChatGPT/Codex OAuth como respaldo; D-008), el agente
    `jarvis`, memoria, skills, servidores MCP, aprobaciones de exec y tareas programadas.
    Servicio: el gateway de OpenClaw como servicio de usuario.
 
@@ -26,7 +26,8 @@ compatible con OpenAI:
   `gateway.http.endpoints.chatCompletions.enabled: true`).
 - Auth: `Authorization: Bearer <token del gateway>` (en `.env` como `OPENCLAW_GATEWAY_TOKEN`).
 - El agente va en `model` (`openclaw/jarvis`; verificar con `GET /v1/models`).
-- `x-openclaw-model: <proveedor/modelo>` cambia el modelo por petición (base del "cambio de cerebro").
+- `x-openclaw-model: <proveedor/modelo>` cambia el modelo por petición (base del "cambio de cerebro"). Es una
+  selección estricta: sin fallback automático.
 - Un `user` estable hace que las peticiones compartan sesión: el historial vive en OpenClaw.
 
 **Reparto de acciones (opción A, ver DECISIONES.md):** OpenClaw ejecuta todas las acciones (shell con
@@ -99,7 +100,8 @@ aprobaciones + MCP). face queda como voz + HUD; sus tools locales se apagan en m
 - Arch Linux, Hyprland/Wayland, RTX 4050 Laptop 6 GB (MUX en modo dGPU; ~1,6 GB de VRAM los usa el escritorio),
   24 GB de RAM, PipeWire.
 - Python 3.11 para face (venv en `face/.venv`, gestionado con uv). Node 26 (sistema) para OpenClaw.
-- Ollama local en `127.0.0.1:11434`.
+- Sin Ollama ni CUDA de sistema (D-008). OpenClaw 2026.11.5 por npm en `~/.local`; gateway `openclaw-gateway.service`
+  con el encierro `scripts/systemd/openclaw-gateway.service.d/`.
 - Herramientas de escritorio en Wayland: `wpctl`, `playerctl`, `brightnessctl`, `notify-send`, `wl-clipboard`,
   `ydotool` (servicio de usuario).
 

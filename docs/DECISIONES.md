@@ -134,4 +134,25 @@ Un asistente propio en Python 3.12 (uv), escrito desde cero en unos 6.100 línea
   `systemd-run --user` por el bus → se cierra exigiendo aprobación humana para esos comandos.
 - **Alternativas:** B = sandbox Podman para exec; C = usuario del sistema `jarvis` separado (más fuerte, pierde el
   escritorio y necesita un puente).
-- **Estado:** pendiente de confirmación del usuario.
+- **Estado:** resuelta el 2026-11-17 por el usuario: capas 1 y 2 + refuerzos a-e (opción A). Aplicada (ver D-008).
+
+## D-008: Cerebro Claude (login de Claude Code) + respaldo Codex; fuera Ollama y Gemini (2026-11-17)
+- **Decisión del usuario:** sin Ollama ni API keys. Principal: Claude vía el runtime `claude-cli` de OpenClaw
+  (usa el `claude` instalado y su login; OpenClaw no lee ni guarda esos tokens). Respaldo: ChatGPT/Codex OAuth.
+- **Modelo:** `anthropic/claude-opus-5-5`. Se probó `claude-fable-5-2` (el nivel más alto del menú): con el plan Pro
+  responde "You're out of usage credits" → exige créditos extra. Opus 5.5 sí funciona (~3 s en caliente).
+- **Respaldo:** `openai/gpt-6-astra` (predeterminado de la suscripción Codex según la doc de OpenClaw).
+- **Consecuencias:** se desinstalan `ollama`, `ollama-cuda` y `cuda` (5,4 GB); el script de sistema ya no los instala
+  y los limpia. `~/.claude` y `~/.claude.json` no pueden bloquearse en el encierro (los necesita el CLI); se protegen
+  con la capa 1 (fs solo en el workspace; exec por allowlist sin lectores genéricos ni intérpretes).
+  El uso consume los límites de la suscripción Pro (la doc de OpenClaw lo advierte para `claude -p`).
+- **Refuerzos a-e** (no se encontró una lista previa escrita; se definieron así):
+  a) exec solo por allowlist (`on-miss` → aprobación humana; sin intérpretes, `systemd-run`, `busctl`, `ydotool`,
+     `cat`/`cp`/`curl`), con `argPattern` por herramienta y `strictInlineEval`;
+  b) `tools.elevated` desactivado, `tools.openclaw.autoApproveChanges: false`, tools `gateway`, `nodes`, `terminal`,
+     `screen` y `browser` denegadas, control del navegador apagado;
+  c) `tools.fs.workspaceOnly` y `applyPatch.workspaceOnly`;
+  d) sin persistencia: `ReadOnlyPaths` para unidades systemd, autostart, Hyprland, shells, `~/.local/bin`,
+     `node_modules` globales, `~/.local/share/{claude,applications}` y `scripts/` del repo;
+  e) `NoNewPrivileges` (sin sudo/setuid para nada que lance el gateway), `RestrictSUIDSGID`, `UMask=0077`;
+     además sesiones visibles solo por agente y agent-to-agent desactivado (recomendación de `security audit`).

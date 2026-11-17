@@ -17,6 +17,27 @@
   de solo lectura: OpenClaw se instala desde su paquete oficial y se
   personaliza solo con config, agente, skills y MCP.
 
+# ⚠️ CAMBIO DE PLANES (2026-11-17) — prevalece sobre los bloques de abajo (D-008)
+- **Sin Ollama y sin API keys.** Cerebro principal: **Claude** reutilizando el login local de Claude Code
+  (runtime `claude-cli` de OpenClaw), con el mejor modelo que permita el plan (Pro → Opus 5.5; Fable pide
+  créditos extra). Respaldo automático: **ChatGPT con OAuth de Codex**
+  (`openclaw models auth login --provider openai`, modelo `openai/gpt-6-astra`). **Gemini queda fuera.**
+- Prioridad: resultados ya; menos paradas y más construir.
+- Orden nuevo:
+  1. Quitar Ollama/CUDA (face no necesita /opt/cuda: faster-whisper trae sus libs CUDA por pip).
+  2. OpenClaw con aislamiento (capas 1 y 2 + refuerzos a-e, ver docs/AISLAMIENTO_OPENCLAW.md); el gateway debe
+     poder usar ~/.claude; las rutas de credenciales nunca en la lista de ejecución libre.
+  3. ⏸ Onboarding: reutilizar el login de Claude (hecho sin interacción) y login de ChatGPT (lo hace el usuario). Sin canales.
+  4. primary = Claude, fallbacks = Codex; probar el failover. Si OpenClaw no salta solo al agotar límites,
+     face reintenta con `x-openclaw-model` hacia GPT y avisa por voz: "Señor, cambio al cerebro de respaldo".
+  5. Gateway con curl; luego face: seguridad mínima, port a Linux, puente, Whisper en GPU (o CPU), Kokoro en CPU.
+     ⏸ Prueba de voz.
+  6. Primeras habilidades sin cuentas externas: "abre [aplicación]" y "escríbeme una receta en un documento"
+     (.docx abierto en LibreOffice), con prueba de voz.
+  7. Después, Bloque 7 y los MCP.
+- **Paradas solo para:** sudo, logins del usuario y pruebas de voz. Lo demás se decide y se anota en la bitácora.
+- Bloques 4 (Ollama) y 8 (cambio de cerebro Gemini/local) quedan **obsoletos** en lo que contradigan esto.
+
 # Modo de trabajo
 - Trabaja de forma autónoma, bloque por bloque y en orden. No me preguntes
   lo que puedas averiguar tú.
