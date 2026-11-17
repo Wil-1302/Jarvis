@@ -18,7 +18,6 @@ NODE=(nodejs npm)                       # Node 26 del sistema (D-006)
 AUDIO_VOZ=(portaudio espeak-ng)         # espeak-ng: fonemas para Kokoro en español
 ESCRITORIO=(wl-clipboard playerctl libnotify brightnessctl at-spi2-core ydotool)
 OFIMATICA=(libreoffice-fresh libreoffice-fresh-es)
-OLLAMA=(ollama)
 
 cat <<EOF
 ================ JARVIS · 01-sistema.sh ================
@@ -31,49 +30,34 @@ Este script va a:
        ${AUDIO_VOZ[*]}
        ${ESCRITORIO[*]}
        ${OFIMATICA[*]}
-       ${OLLAMA[*]} + backend de GPU (a elegir: CUDA o Vulkan)
-  2. Ollama: servicio de sistema 'ollama' habilitado, escuchando SOLO en 127.0.0.1:11434
-     (drop-in /etc/systemd/system/ollama.service.d/jarvis.conf).
+       (Sin Ollama ni CUDA: D-008. faster-whisper trae sus librerías CUDA por pip.)
+  2. Limpieza de una versión anterior de este script: si existen ollama/ollama-cuda/cuda
+     instalados por él, los desinstala (pacman -Rns) junto con su drop-in.
   3. ydotool: asegurar que el módulo uinput se cargue al arrancar
      (/etc/modules-load.d/jarvis-uinput.conf). El acceso a /dev/uinput ya lo da la
      ACL de tu sesión (uaccess); NO se te añade al grupo 'input'.
   4. loginctl enable-linger $USUARIO (servicios de usuario sin sesión abierta).
-  5. Opcional: ufw denegando todo lo entrante (se pregunta).
+  5. ufw denegando todo lo entrante y permitiendo lo saliente.
 No toca nada más. No usa AUR.
 =========================================================
 EOF
 read -r -p "¿Continuar? [s/N] " r; [[ "$r" =~ ^[sS]$ ]] || { echo "Cancelado."; exit 0; }
 
-echo
-echo "Backend de GPU para Ollama:"
-echo "  1) CUDA   (ollama-cuda + cuda: ~2,8 GB de descarga, ~5,7 GB en disco; el más rápido)"
-echo "  2) Vulkan (ollama-vulkan: 5 MB; algo más lento, sin dependencia de CUDA)"
-read -r -p "Elige 1 o 2 [2]: " b
-case "${b:-2}" in
-  1) BACKEND=cuda;   OLLAMA+=(ollama-cuda) ;;
-  2) BACKEND=vulkan; OLLAMA+=(ollama-vulkan) ;;
-  *) echo "Opción no válida."; exit 1 ;;
-esac
-
-read -r -p "¿Activar ufw (deniega todo lo entrante, permite lo saliente)? [s/N] " u
-UFW=no; [[ "$u" =~ ^[sS]$ ]] && UFW=si
-
 echo; echo ">> [1/5] pacman -Syu --needed ..."
-PKGS=("${BASE[@]}" "${NODE[@]}" "${AUDIO_VOZ[@]}" "${ESCRITORIO[@]}" "${OFIMATICA[@]}" "${OLLAMA[@]}")
-[[ $UFW == si ]] && PKGS+=(ufw)
+PKGS=("${BASE[@]}" "${NODE[@]}" "${AUDIO_VOZ[@]}" "${ESCRITORIO[@]}" "${OFIMATICA[@]}" ufw)
 pacman -Syu --needed --noconfirm "${PKGS[@]}"
 
-echo; echo ">> [2/5] Ollama ($BACKEND) en 127.0.0.1:11434 ..."
-install -d -m 755 /etc/systemd/system/ollama.service.d
-{
-  echo "# Generado por JARVIS scripts/arch/01-sistema.sh"
-  echo "[Service]"
-  echo 'Environment="OLLAMA_HOST=127.0.0.1:11434"'
-  [[ $BACKEND == vulkan ]] && echo 'Environment="OLLAMA_VULKAN=1"'
-} > /etc/systemd/system/ollama.service.d/jarvis.conf
-systemctl daemon-reload
-systemctl enable --now ollama.service
-systemctl restart ollama.service
+echo; echo ">> [2/5] Limpieza de Ollama/CUDA (D-008) ..."
+VIEJOS=()
+for p in ollama-cuda ollama-vulkan ollama; do pacman -Qq "$p" &>/dev/null && VIEJOS+=("$p"); done
+if ((${#VIEJOS[@]})); then
+  systemctl disable --now ollama.service 2>/dev/null || true
+  pacman -Rns --noconfirm "${VIEJOS[@]}"   # -s arrastra cuda si nadie más lo necesita
+  rm -rf /etc/systemd/system/ollama.service.d
+  systemctl daemon-reload
+else
+  echo "   nada que limpiar."
+fi
 
 echo; echo ">> [3/5] uinput al arranque ..."
 echo uinput > /etc/modules-load.d/jarvis-uinput.conf
@@ -82,24 +66,19 @@ modprobe uinput
 echo; echo ">> [4/5] linger para $USUARIO ..."
 loginctl enable-linger "$USUARIO"
 
-if [[ $UFW == si ]]; then
-  echo; echo ">> [5/5] ufw ..."
-  ufw default deny incoming
-  ufw default allow outgoing
-  ufw --force enable
-  systemctl enable --now ufw.service
-else
-  echo; echo ">> [5/5] ufw: omitido."
-fi
+echo; echo ">> [5/5] ufw ..."
+ufw default deny incoming
+ufw default allow outgoing
+ufw --force enable
+systemctl enable --now ufw.service
 
 echo
 echo "================ Verificación ================"
-printf 'ollama:   '; systemctl is-active ollama.service
-printf 'escucha:  '; ss -tlnH 'sport = :11434' | awk '{print $4}' | paste -sd' '
-printf 'backend:  %s\n' "$BACKEND"
+printf 'ollama:   '; pacman -Qq ollama &>/dev/null && echo "SIGUE INSTALADO" || echo "no instalado (ok)"
+printf 'cuda:     '; pacman -Qq cuda &>/dev/null && echo "sigue (lo pide otro paquete)" || echo "no instalado (ok)"
 printf 'linger:   '; loginctl show-user "$USUARIO" -p Linger --value
 printf 'uinput:   '; lsmod | grep -qw uinput && echo cargado || echo NO
 printf 'node:     '; node --version
 for c in playerctl espeak-ng soffice; do printf '%-9s ' "$c:"; command -v "$c" >/dev/null && echo ok || echo FALTA; done
-[[ $UFW == si ]] && { printf 'ufw:      '; ufw status | head -1; }
+printf 'ufw:      '; ufw status | head -1
 echo "Listo. Vuelve con Claude y dile que terminó."
