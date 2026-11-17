@@ -1,0 +1,48 @@
+// JARVIS — parche de configuración de OpenClaw (sin secretos). Lo aplica scripts/sync-brain.sh
+// con `openclaw config patch --file`. Capa 1 del aislamiento: docs/AISLAMIENTO_OPENCLAW.md. D-008.
+{
+  agents: {
+    defaults: {
+      model: {
+        primary: "anthropic/claude-opus-5-5",    // mejor modelo que permite el plan Pro (Fable pide créditos extra)
+        fallbacks: ["openai/gpt-6-astra"],       // respaldo: suscripción ChatGPT vía OAuth de Codex
+      },
+      models: {
+        "anthropic/claude-opus-5-5": { agentRuntime: { id: "claude-cli" } },
+      },
+    },
+    entries: {
+      main: { workspace: "~/.openclaw/workspace" },
+      jarvis: {
+        name: "jarvis",
+        workspace: "~/.openclaw/workspace-jarvis",
+        agentDir: "~/.openclaw/agents/jarvis/agent",
+        identity: { name: "JARVIS" },
+      },
+    },
+  },
+  gateway: {
+    bind: "loopback",
+    http: { endpoints: { chatCompletions: { enabled: true } } },
+  },
+  tools: {
+    // Refuerzo c: herramientas de archivos confinadas al workspace.
+    fs: { workspaceOnly: true },
+    exec: {
+      applyPatch: { workspaceOnly: true },
+      // Refuerzo a: solo la allowlist corre sin preguntar; lo demás pide aprobación humana (Control UI).
+      security: "allowlist",
+      ask: "on-miss",
+      strictInlineEval: true,
+    },
+    // Refuerzo b: sin escape "elevated" ni autoaprobación de cambios de config por el propio agente.
+    elevated: { enabled: false },
+    openclaw: { autoApproveChanges: false },
+    // gateway = reconfigurar OpenClaw; nodes/computer/terminal/screen = control directo del escritorio.
+    deny: ["gateway", "group:nodes", "terminal", "screen", "browser"],
+    // security audit: cada agente ve solo sus sesiones; sin mensajes entre agentes.
+    sessions: { visibility: "agent" },
+    agentToAgent: { enabled: false },
+  },
+  browser: { enabled: false },
+}

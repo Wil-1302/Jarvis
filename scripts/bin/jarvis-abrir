@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""jarvis-abrir <nombre> — abre una aplicación instalada (.desktop) por su nombre.
+
+Lo ejecuta el agente de OpenClaw (está en su allowlist). Solo lanza entradas .desktop
+existentes, y lo hace a través de Hyprland (`hyprctl dispatch exec`) para que la app
+quede fuera del encierro del gateway (si no, p. ej. el navegador no vería su perfil).
+"""
+import configparser, os, pathlib, re, subprocess, sys, unicodedata
+
+DIRS = [pathlib.Path("/usr/share/applications"),
+        pathlib.Path.home() / ".local/share/applications",
+        pathlib.Path("/var/lib/flatpak/exports/share/applications")]
+SINONIMOS = {  # lo que se dice en voz alta → nombre o id habitual
+    "navegador": "google chrome", "chrome": "google chrome", "terminal": "kitty", "archivos": "dolphin",
+    "explorador de archivos": "dolphin", "musica": "spotify", "word": "writer",
+    "documento": "writer", "excel": "calc", "hoja de calculo": "calc",
+    "presentacion": "impress", "powerpoint": "impress", "editor": "kate",
+    "calculadora": "calculator",
+}
+
+def norm(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s.lower())
+    return re.sub(r"\s+", " ", "".join(c for c in s if not unicodedata.combining(c))).strip()
+
+def entradas():
+    for d in DIRS:
+        if not d.is_dir():
+            continue
+        for f in d.glob("*.desktop"):
+            cp = configparser.ConfigParser(interpolation=None, strict=False)
+            try:
+                cp.read(f, encoding="utf-8")
+                e = cp["Desktop Entry"]
+            except Exception:
+                continue
+            if e.get("Type", "Application") != "Application" or e.get("NoDisplay", "false") == "true":
+                continue
+            nombres = {e.get(k, "") for k in ("Name", "Name[es]", "GenericName", "GenericName[es]")}
+            yield f.stem, {norm(n) for n in nombres if n}, norm(e.get("Keywords", "") + " " + e.get("Keywords[es]", ""))
+
+def buscar(q: str):
+    q = norm(SINONIMOS.get(norm(q), q))
+    mejor, puntos = None, 0
+    for id_, nombres, kw in entradas():
+        idn = norm(id_.split(".")[-1])
+        p = (100 if q in nombres or q == idn else
+             80 if any(n.startswith(q) for n in nombres) or idn.startswith(q) else
+             60 if any(q in n for n in nombres) or q in norm(id_) else
+             30 if q in kw else 0)
+        if p > puntos:
+            mejor, puntos = id_, p
+    return mejor
+
+def lanzar(cmd: str):
+    """Ejecuta cmd como hijo de Hyprland. 0.57+ usa Lua (hl.dsp.exec_cmd); antes, `dispatch exec`."""
+    r = subprocess.run(["hyprctl", "dispatch", f'hl.dsp.exec_cmd("{cmd}")'], capture_output=True, text=True, timeout=10)
+    if "ok" not in r.stdout:
+        r = subprocess.run(["hyprctl", "dispatch", "exec", cmd], capture_output=True, text=True, timeout=10)
+    return r
+
+def main():
+    if len(sys.argv) != 2 or not re.fullmatch(r"[\w .+-]{1,60}", sys.argv[1]):
+        print("uso: jarvis-abrir <nombre de la aplicación>", file=sys.stderr); return 2
+    id_ = buscar(sys.argv[1])
+    if not id_:
+        print(f"No encontré ninguna aplicación llamada «{sys.argv[1]}».", file=sys.stderr); return 1
+    if not re.fullmatch(r"[\w.+-]+", id_):
+        print("id de aplicación no válido", file=sys.stderr); return 1
+    r = lanzar(f"gtk-launch {id_}")
+    if r.returncode != 0 or "ok" not in r.stdout:
+        print(f"No pude lanzar {id_}: {r.stdout.strip()} {r.stderr.strip()}", file=sys.stderr); return 1
+    print(f"Abierta: {id_}")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

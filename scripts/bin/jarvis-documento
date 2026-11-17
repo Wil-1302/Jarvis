@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# jarvis-documento <archivo.html del workspace> <nombre> — convierte a .docx y lo abre en LibreOffice.
+# Lo ejecuta el agente de OpenClaw (allowlist). Solo lee del workspace del agente y solo escribe en
+# ~/Documentos/Jarvis. La conversión usa un perfil de LibreOffice temporal para no chocar con uno abierto.
+set -euo pipefail
+WS="${JARVIS_WORKSPACE:-$HOME/.openclaw/workspace-jarvis}"
+DEST="$(xdg-user-dir DOCUMENTS 2>/dev/null || echo "$HOME/Documentos")/Jarvis"
+[[ $# -eq 2 ]] || { echo "uso: jarvis-documento <archivo.html> <nombre>" >&2; exit 2; }
+[[ $2 =~ ^[[:alnum:]\ _-]{1,60}$ ]] || { echo "nombre no válido (letras, números, espacio, _ -)" >&2; exit 2; }
+SRC="$(realpath -e -- "$WS/${1#"$WS"/}" 2>/dev/null)" || { echo "no existe $1 en el workspace" >&2; exit 1; }
+[[ $SRC == "$(realpath "$WS")"/* && $SRC =~ \.(html?|txt)$ ]] || { echo "solo .html/.txt dentro del workspace" >&2; exit 1; }
+mkdir -p "$DEST"
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+cp -- "$SRC" "$TMP/doc.${SRC##*.}"
+soffice -env:UserInstallation="file://$TMP/perfil" --headless --convert-to 'docx:MS Word 2007 XML' \
+  --outdir "$TMP" "$TMP/doc.${SRC##*.}" >/dev/null 2>&1
+[[ -s $TMP/doc.docx ]] || { echo "LibreOffice no generó el .docx" >&2; exit 1; }
+OUT="$DEST/$2.docx"; n=2; while [[ -e $OUT ]]; do OUT="$DEST/$2 ($n).docx"; n=$((n+1)); done
+mv -- "$TMP/doc.docx" "$OUT"
+CMD="libreoffice --writer '$OUT'"
+# Hyprland 0.57+ (config Lua): hl.dsp.exec_cmd; versiones anteriores: dispatch exec.
+hyprctl dispatch "hl.dsp.exec_cmd(\"$CMD\")" | grep -q ok || hyprctl dispatch exec "$CMD" >/dev/null
+echo "Documento creado y abierto: $OUT"
