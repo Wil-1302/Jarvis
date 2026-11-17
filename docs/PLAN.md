@@ -22,7 +22,9 @@ historial en `docs/BITACORA.md`.
 ## Bloque 2 — Paquetes del sistema
 - [x] `scripts/arch/01-sistema.sh` ejecutado el 2026-11-17 (instaló ollama-cuda por error de elección; linger lo activó Claude)
 - [x] Script reescrito: sin Ollama/CUDA, los limpia si están, ufw siempre
-- [ ] ⏸ sudo: `sudo bash scripts/arch/01-sistema.sh` (quita ollama/cuda, activa ufw)
+- [x] Ejecutado de nuevo: ollama, ollama-cuda y cuda desinstalados; ufw instalado
+- [ ] ⏸ ufw inactivo: el kernel en marcha (arch1-1) no tiene módulos (instalado arch1-2) → reiniciar y
+      `sudo ufw --force enable && sudo systemctl enable --now ufw`
 
 ## Bloque 3 — Entorno de usuario
 - [x] Python 3.11.18 (uv), prefijo npm `~/.local`, git, llave SSH
@@ -42,13 +44,16 @@ historial en `docs/BITACORA.md`.
 - [ ] Prueba de failover real (primary agotado → GPT) y aviso por voz en face
 
 ## Bloque 6 — Cara en Linux + puente
-- [ ] Endurecimiento obligatorio: HUD en 127.0.0.1 con token (HTTP + WS), `/api/providers` sin keys, keys solo desde `.env`, `power_command`/`run_python` con confirmación o desactivados
-- [ ] Opción A probada y registrada (D-004)
-- [ ] Port de `install.bat`/`start.bat` a `.sh`; quitar/reemplazar lo exclusivo de Windows
-- [ ] venv 3.11, dependencias, faster-whisper CUDA, wake word ONNX
-- [ ] Proveedor `openclaw` en `face/config.yaml` (sin historial reenviado, timeout, sin fallback silencioso)
-- [ ] `jarvis-face.service`, `start-all.sh`, `stop-all.sh`, `doctor.sh`
-- [ ] ⏸ Prueba de voz: "Hey Jarvis" → "hola" → respuesta hablada
+- [x] Endurecimiento: HUD solo en 127.0.0.1, token en cookie HttpOnly (HTTP + WS), Host/Origin locales,
+      `/api/providers` sin keys, PUT/DELETE de proveedores desactivados; `power_command`/`run_python` fuera (opción A)
+- [x] Opción A (D-004): face sin tools locales; las acciones las hace OpenClaw (probado con abrir app y documento)
+- [x] `install.bat`/`start.bat` → `scripts/install-face.sh`, `face/run.sh`, `start-all.sh`, `stop-all.sh`, `doctor.sh`
+- [x] venv 3.11 (torch CPU, cuBLAS/cuDNN por pip, sin /opt/cuda); Whisper large-v3-turbo en GPU (0,48 s),
+      Kokoro em_alex en CPU (0,28 s), wake word ONNX (1,00 con "Hey Jarvis" sintético)
+- [x] Puente `jarvis/brain.py` (sin historial, timeout 180 s, sin fallback silencioso, respaldo con aviso)
+- [x] `jarvis-face.service` activo; prueba HUD → face → OpenClaw → Claude → voz por WebSocket
+- [x] Tests: 23 en verde (puente, seguridad del HUD, STT)
+- [ ] ⏸ Prueba de voz con el señor
 
 ## Bloque 7 — Voz y personalidad
 - [ ] STT con idioma configurable (es por defecto); TTS con `lang_code` configurable

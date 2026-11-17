@@ -75,3 +75,15 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
   libreoffice" → Calc abierto; receta de tortilla → `~/Documentos/Jarvis/Receta tortilla de patatas.docx` abierto en
   Writer (26 s); aislamiento: read fuera del workspace y exec fuera de la allowlist, denegados.
 - Falta: ⏸ login de Codex; prueba de failover con GPT; face.
+
+## 2026-11-17 · Bloque 6 — face en Linux + puente
+- venv (uv, 3.11): torch 2.15 CPU, faster-whisper con cuBLAS/cuDNN de pip (2,1 GB), kokoro, openwakeword, total 3,9 GB.
+- Pruebas reales: Kokoro `em_alex` en español (0,28 s en caliente) → Whisper `large-v3-turbo` en CUDA transcribe
+  la frase exacta (0,48 s en caliente; VRAM total 1,6 GB con el escritorio). "Hey Jarvis" sintético: 1,00.
+- Falta `websockets` en el venv: uvicorn no atendía el WebSocket del HUD → añadido a requirements.
+- HUD en vivo: sin token 401, Host ajeno 421, token → cookie y redirección; WS sin cookie rechazado; orden escrita
+  por WS → Claude → respuesta hablada. `jarvis-face.service` habilitado (linger: arranca solo).
+- El usuario reejecutó `01-sistema.sh`: ollama/cuda fuera, ufw instalado pero **inactivo**: el kernel en marcha
+  (7.3.4-arch1-1) ya no tiene módulos (instalado arch1-2) → hace falta reiniciar.
+- doctor.sh: corregidos falsos rojos de loopback (la regex miraba la columna del par remoto).
+- Pendiente: ⏸ login de Codex, ⏸ reinicio + ufw, ⏸ prueba de voz, prueba de failover con GPT.

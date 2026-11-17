@@ -36,7 +36,10 @@ Otras notas sobre el original:
 - dos de sus tres commits están firmados por `Antigravity <antigravity@openclaw.local>`, generados con IA;
 - `PROJECT_SUMMARY.txt` lo describe como una versión "saneada y vendible" de un proyecto privado.
 
-## D-004: Opción A vs. B para las tools de face
+## D-004: Opción A vs. B para las tools de face — ✅ A (2026-11-17)
+- **Resuelta:** opción A. face no ejecuta tools (sin pyautogui, run_python ni power_command); OpenClaw hace todo.
+  Probado: "abre la calculadora de libreoffice" y la receta en .docx funcionan vía OpenClaw con allowlist.
+  Medios y volumen también van por OpenClaw (`playerctl`/`wpctl` en la allowlist); si la latencia molesta, se revisa.
 
 Pendiente (Bloque 6). Con todo en la misma máquina (D-005), el usuario prefiere la **opción A**: OpenClaw ejecuta
 todas las acciones (shell + MCP) y face queda como voz + HUD. Se confirmará con una prueba real. Ver `docs/ANALISIS_FACE.md` §6.
