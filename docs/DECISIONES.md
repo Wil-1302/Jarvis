@@ -272,5 +272,38 @@ NoNewPrivileges; todo eso sigue. La lista del señor añade y reordena:
   y lo que hace algo (abrir, crear, escribir, código, documentos, archivos, búsquedas, clima, recordatorios…) o las
   peticiones largas a `anthropic/claude-sonnet-5-5`, con respaldo cruzado.
 - **Coste medido:** GPT 1.ª oración 3,10 s / total 3,91 s; Sonnet 1,43 s / 1,66 s → la charla empieza a hablar ~1,7 s
-  más tarde. GPT a veces responde con listas pese a SOUL.md. Interruptor: `llm.enrutado.activo` en config.yaml.
+  más tarde. GPT a veces respondía con listas pese a SOUL.md (resuelto en D-019). Interruptor: `llm.enrutado.activo` en config.yaml.
 - Persona: "señor" solo de vez en cuando (SOUL.md, USER.md y frases locales).
+
+## D-018: Spotify sin credenciales: búsqueda rápida de la app + teclas (2026-11-18)
+- Cambio de Spotify (feb. 2026): las apps en Development Mode exigen Premium al dueño, perdieron el endpoint de top
+  tracks del artista y la búsqueda devuelve como mucho 10 resultados. El señor usa Spotify Free → la Web API no sirve.
+- **Camino por defecto (sin credenciales):** `spotify.reproducir_busqueda`: enfoca Spotify (hyprctl), Ctrl+K
+  (búsqueda rápida), pega la consulta por el portapapeles (teclado latam: `ydotool type` asume US), Shift+Enter
+  (= reproducir) y Esc. Se restaura el portapapeles y el foco de la ventana anterior. Éxito = MPRIS en Playing con
+  otra pista; lo que suena se lee de MPRIS y se anuncia.
+- "Música de ARTISTA" = búsqueda por artista: `artist:X` en la búsqueda rápida deja solo temas suyos y se elige uno de
+  los 5 primeros al azar. Con la API (si algún día hay Premium + credenciales): `search?q=artist:"X"&type=track&limit=10`
+  y tema al azar entre los suyos; un 401/403 desactiva la API en esa sesión y se usa el escritorio.
+- ydotool (servicio de usuario `ydotool.service`) habilitado al iniciar sesión; doctor.sh lo comprueba. Solo face lo
+  usa; el agente lo tiene prohibido (AGENTS.md, líneas rojas).
+- Probado de verdad: "pon música de Gustavo Cerati" → «Crimen»; "reproduce Persiana americana de Soda Stereo" →
+  «Persiana Americana»; con el foco en otra ventana, vuelve a ella y el portapapeles queda igual.
+- Límite conocido: depende de la interfaz de la app (Ctrl+K y Shift+Enter de la 1.3.8). Si una actualización lo
+  cambia, falla con "No consigo poner … en Spotify" (no hace nada raro).
+
+## D-019: Los dos cerebros hablan en prosa (2026-11-18)
+- face manda en cada petición un mensaje `system` (`brain.ESTILO_VOZ`): OpenClaw lo añade a las instrucciones del
+  agente en ese turno (`extraSystemPrompt`, src/gateway/openai-http.ts), así que vale igual para Claude y GPT.
+  Configurable en `llm.openclaw.estilo` ("" = no enviar). SOUL.md lo dice también.
+- Red de seguridad: `tts.FiltroProsa` limpia al vuelo (streaming) viñetas, numeraciones, encabezados, citas, reglas,
+  bloques de código y tablas, y cierra con punto cada línea; `_clean` quita negritas, enlaces, URLs y emojis. Solo
+  retiene unos caracteres al principio de cada línea (sin coste de latencia apreciable).
+- Probado por HTTP: "tres ideas para cenar con sus pasos" → prosa con GPT y con Sonnet.
+
+## D-020: Ubicación por defecto en la memoria privada del agente (2026-11-18)
+- La ciudad del señor está en `~/.openclaw/workspace-jarvis/MEMORY.md` (600; la escribe el agente o el señor;
+  `sync-brain.sh` no la toca). **Nunca en el repo.** AGENTS.md (repo) solo dice: "usa la ubicación de MEMORY.md
+  sin preguntar; si no hay, pregunta una vez y guárdala allí".
+- Probado: "¿Qué tiempo hace hoy?" sin ciudad → responde con la suya (GPT y Sonnet).
+

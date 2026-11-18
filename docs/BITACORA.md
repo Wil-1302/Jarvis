@@ -148,3 +148,18 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
 - `scripts/revisar-push.sh` + hook pre-push: probado con un secreto real, un .wav y una línea de log (los tres
   detectados). Arreglado un fallo de pipefail que lo hacía pasar por alto secretos.
 - Un test llevaba la ciudad del señor: cambiada y commit reescrito antes del push (sin rastro en el historial).
+
+## 2026-11-18 · Spotify sin credenciales, prosa y ubicación
+- Spotify (D-018): el señor tiene Spotify Free y la API en Development Mode ya exige Premium (y perdió top tracks).
+  Probado en la app: `spotify:search:` abre la búsqueda, pero lo útil es la búsqueda rápida (Ctrl+K) con Shift+Enter =
+  reproducir; con `artist:X` solo salen temas del artista. Hecho con ydotool + portapapeles (teclado latam) y
+  restaurando foco y portapapeles. Pruebas reales: Cerati, Soda Stereo y Enanitos Verdes sonaron (y se pausaron).
+  `ydotool.service` estaba deshabilitado: habilitado; doctor.sh e install-face.sh lo cubren.
+- Prosa (D-019): mensaje `system` por petición (OpenClaw lo convierte en instrucciones extra del turno) + filtro de
+  Markdown al vuelo antes de la voz. GPT y Sonnet contestaron en prosa a "tres ideas para cenar con los pasos".
+- Ubicación (D-020): ciudad del señor (sacada de sus propias órdenes de clima en el registro de face) en MEMORY.md del
+  workspace del agente. Clima sin ciudad → responde con la suya. Sesión de prueba `prueba-prosa` borrada; su índice
+  de memoria (`openclaw memory forget`) solo se puede borrar con el gateway parado: pendiente, sin importancia.
+- Tests: 94 en verde.
+- Pendiente: ⏸ prueba de voz con la verificación de hablante (enrolar primero) → después, push.
+

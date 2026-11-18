@@ -89,7 +89,9 @@ historial en `docs/BITACORA.md`.
 
 - [x] Refuerzos a–e definitivos y verificados (D-013)
 - [x] Verificación de hablante (D-015) — [ ] ⏸ enrolar la voz del señor y medir con él
-- [x] Música/volumen locales (D-016) — [ ] ⏸ credenciales de Spotify para buscar canciones
+- [x] Música/volumen locales (D-016); búsqueda sin credenciales por la app de escritorio (D-018)
+- [x] Respuestas en prosa con los dos cerebros + limpieza de Markdown antes de la voz (D-019)
+- [x] Ubicación por defecto en la memoria privada del agente (D-020)
 - [x] Enrutado charla → GPT, trabajo → Claude (D-017)
 - [x] Revisión antes del push (`scripts/revisar-push.sh`, hook pre-push)
 - [ ] ⏸ Borrar el journal de usuario con las transcripciones (sudo)
