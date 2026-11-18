@@ -132,17 +132,25 @@ def _brain() -> Brain:
 def _procesar_stream(texto: str, on_delta) -> tuple[str, bool]:
     """Orden → OpenClaw en streaming. Los errores se convierten en una frase hablada."""
     try:
-        r, backup = _brain().ask_stream(texto, on_delta)
+        cfg = _load_config()
+        b = _brain()
+        if not (cfg.get("llm") or {}).get("openclaw", {}).get("model"):  # sin cerebro elegido por voz → enrutado
+            from jarvis import enrutador
+            m, respaldo, tipo = enrutador.elegir(texto, cfg)
+            if m:
+                b.model_override, b.backup_model = m, respaldo
+                print(f"[Cerebro] {tipo} → {m}")
+        r, backup = b.ask_stream(texto, on_delta)
         if backup:
             _broadcast({"type": "provider_changed", "provider": "respaldo"})
         return r, backup
     except ConnectionError:
-        msg = "Señor, no consigo contactar con mi cerebro. El servicio de OpenClaw parece detenido."
+        msg = "No consigo contactar con mi cerebro: el servicio de OpenClaw parece detenido."
     except TimeoutError:
-        msg = "Señor, el cerebro está tardando demasiado. Lo dejo aquí; puede preguntarme de nuevo."
+        msg = "El cerebro está tardando demasiado. Lo dejo aquí; puede preguntarme de nuevo."
     except BrainError as e:
         print(f"[Brain] {e}")
-        msg = "Lo siento, señor: ni el cerebro principal ni el de respaldo han respondido."
+        msg = "Lo siento: ni el cerebro principal ni el de respaldo han respondido."
     on_delta(msg)
     return msg, False
 

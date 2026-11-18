@@ -7,7 +7,7 @@ así que aquí solo se envía el mensaje nuevo.
 Failover en dos niveles:
 1. OpenClaw: `agents.defaults.model.fallbacks` (Claude → GPT) salta solo con límites, auth o timeouts.
 2. face: si la petición aun así falla, reintenta UNA vez forzando el cerebro de respaldo con
-   `x-openclaw-model` y avisa por voz ("Señor, cambio al cerebro de respaldo").
+   `x-openclaw-model` y avisa por voz ("Cambio al cerebro de respaldo").
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ import httpx
 _REPO_ENV = Path(__file__).resolve().parents[2] / ".env"   # antiguo (solo compatibilidad)
 # Refuerzo a: secretos de face fuera del repo y fuera del alcance del gateway (InaccessiblePaths).
 SECRETS = Path(os.environ.get("JARVIS_SECRETS", Path.home() / ".config" / "jarvis" / "secrets.env"))
-AVISO_RESPALDO = "Señor, cambio al cerebro de respaldo."
+AVISO_RESPALDO = "Cambio al cerebro de respaldo."
 
 # Errores que justifican cambiar de cerebro (límites, cuotas, auth del proveedor, caídas).
 _PATRON_FALLO_MODELO = re.compile(
@@ -102,7 +102,7 @@ class Brain:
             msg = err.get("message") if isinstance(err, dict) else str(err)
             raise BrainError(f"HTTP {r.status_code}: {msg or r.text[:300]}")
         content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
-        return content or "Hecho, señor."
+        return content or "Hecho."
 
     def _stream(self, text: str, model: str | None, on_delta: Callable[[str], None]) -> str:
         """Igual que _post pero con stream=true (SSE): llama on_delta con cada fragmento de texto."""
@@ -149,7 +149,7 @@ class Brain:
         except httpx.TimeoutException as e:
             raise TimeoutError(f"El cerebro tardó más de {self.timeout:.0f} s.") from e
         if not full.strip():
-            full = "Hecho, señor."
+            full = "Hecho."
             on_delta(full)
         return full
 

@@ -56,3 +56,15 @@ desktop.ini
 .idea/
 *.swp
 .claude/settings.local.json
+
+# Voz y privacidad (D-015): nunca al repo
+*.npz
+*.npy
+*.mp3
+*.ogg
+*.opus
+*.flac
+*.jsonl
+voz.npz
+medidas-voz.json
+secrets.env

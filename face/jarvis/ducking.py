@@ -7,8 +7,8 @@ sistema. Aquí se guarda el volumen de cada stream (sink-input de pipewire-pulse
 
 Seguro ante caídas: el estado se escribe en $XDG_RUNTIME_DIR/jarvis/ducking.json ANTES de tocar nada.
 `python -m jarvis.ducking restore` lo deshace; lo ejecutan el arranque de face y el ExecStopPost de
-jarvis-face.service (corre también si face se cae). Si el usuario cambió un volumen mientras estaba
-bajado, ese stream no se toca al restaurar.
+jarvis-face.service (corre también si face se cae). Siempre se restaura el volumen de antes;
+las órdenes de volumen durante la conversación lo cambian con set_original().
 """
 from __future__ import annotations
 
@@ -127,7 +127,9 @@ def unduck() -> None:
 
 
 def restore() -> None:
-    """Devuelve cada stream a su volumen original (si nadie lo cambió entretanto) y borra el estado."""
+    """Devuelve cada stream EXACTAMENTE a su volumen de antes y borra el estado. (Antes se respetaban los
+    cambios hechos mientras estaba bajado, pero Spotify reajusta su volumen al cambiar de canción y la música
+    se quedaba baja.) Para cambiar el volumen al que se vuelve: set_original()."""
     with _lock:
         state = _load()
         if not state:
@@ -137,15 +139,33 @@ def restore() -> None:
             s = now.get(idx)
             if s is None or s.get("properties", {}).get("application.name", "?") != rec["app"]:
                 continue  # el stream ya no existe
-            cur = _vols(s)
-            if len(cur) == len(rec["ducked"]) and all(abs(a - b) <= 700 for a, b in zip(cur, rec["ducked"])):
-                _set(idx, rec["orig"])
-            else:
-                print(f"[Ducking] {rec['app']}: el volumen cambió mientras estaba bajado; lo dejo como está.")
+            _set(idx, rec["orig"])
         try:
             _STATE.unlink()
         except FileNotFoundError:
             pass
+
+
+def set_original(app: str, fraccion: float) -> bool:
+    """Orden de volumen durante la conversación: fija el volumen al que volverá `app` (0..1.5) y, si está
+    bajado, lo deja bajado en proporción. Devuelve True si había algún stream de esa app bajado."""
+    with _lock:
+        state = _load()
+        hit = False
+        for idx, rec in state.items():
+            if rec["app"].lower() == app.lower():
+                v = max(0, round(65536 * fraccion))
+                rec["orig"] = [v] * len(rec["orig"])
+                rec["ducked"] = [max(0, round(v * _factor))] * len(rec["orig"])
+                _set(idx, rec["ducked"])
+                hit = True
+        if hit:
+            _save(state)
+        return hit
+
+
+def is_ducked() -> bool:
+    return _depth > 0
 
 
 class ducked:

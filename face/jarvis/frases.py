@@ -18,17 +18,17 @@ from pathlib import Path
 import numpy as np
 
 CATEGORIAS: dict[str, list[str]] = {
-    "llamada": ["¿Señor?", "Dígame, señor.", "A su servicio.", "¿Sí, señor?", "Le escucho.", "¿En qué puedo ayudarle?"],
-    "presencia": ["Para usted, siempre, señor.", "Despierto y atento, señor.", "Aquí estoy, señor. ¿Qué necesita?",
-                  "Siempre en línea, señor.", "Le escucho perfectamente, señor."],
-    "ayuda": ["Por supuesto, señor. ¿En qué le ayudo?", "Claro, señor. Dígame.", "Cuente conmigo, señor. ¿Qué necesita?",
-              "Para eso estoy, señor. Usted dirá."],
-    "saludo_manana": ["Buenos días, señor. ¿En qué le ayudo?", "Buenos días, señor. Todo en orden."],
-    "saludo_tarde": ["Buenas tardes, señor. ¿Qué necesita?", "Buenas tardes, señor. Todo en orden por aquí."],
-    "saludo_noche": ["Buenas noches, señor. ¿En qué le ayudo?", "Buenas noches, señor. Todo en orden por aquí."],
-    "gracias": ["Un placer, señor.", "A su disposición.", "Siempre, señor."],
-    "despedida": ["A su disposición, señor.", "Aquí estaré, señor.", "Cuando me necesite, señor.", "Entendido. Quedo en espera."],
-    "no_entendi": ["Disculpe, señor, no le he entendido.", "Perdone, ¿podría repetirlo?"],
+    # "señor" solo de vez en cuando: repetirlo en cada frase le incomoda (2026-11-17).
+    "llamada": ["¿Sí?", "Dígame.", "A su servicio.", "Le escucho.", "¿En qué puedo ayudarle?", "¿Señor?"],
+    "presencia": ["Aquí estoy.", "Despierto y atento.", "Siempre en línea. ¿Qué necesita?", "Le escucho perfectamente.",
+                  "Para usted, siempre, señor."],
+    "ayuda": ["Por supuesto. ¿En qué le ayudo?", "Claro, dígame.", "Cuente conmigo. ¿Qué necesita?", "Usted dirá."],
+    "saludo_manana": ["Buenos días. ¿En qué le ayudo?", "Buenos días, señor."],
+    "saludo_tarde": ["Buenas tardes. ¿Qué necesita?", "Buenas tardes. Todo en orden por aquí."],
+    "saludo_noche": ["Buenas noches. ¿En qué le ayudo?", "Buenas noches. Todo en orden por aquí."],
+    "gracias": ["Un placer.", "A su disposición.", "No hay de qué."],
+    "despedida": ["A su disposición.", "Aquí estaré.", "Cuando me necesite.", "Entendido. Quedo en espera.", "Hasta luego, señor."],
+    "no_entendi": ["Disculpe, no le he entendido.", "Perdone, ¿podría repetirlo?"],
 }
 
 # Frase "vacía" (solo llamar): se contesta en local. Si trae contenido real, va al cerebro.
@@ -38,8 +38,11 @@ _PATRONES = [
     ("saludo", r"^(hola|buenas|buenos dias|buenas tardes|buenas noches|que tal|hola que tal|como estas|hola como estas|que hay)$"),
     ("gracias", r"^(gracias|muchas gracias|genial gracias|perfecto gracias)$"),
 ]
-_DESPEDIDA = re.compile(r"(gracias,? )?(eso es todo|ya esta|nada mas|es todo|cierra la conversacion|termina(mos)?|"
-                        r"hemos terminado|puedes descansar|hasta luego|adios|listo,? gracias|ya termine|nada,? gracias|nada mas,? gracias|eso es todo,? gracias|ya esta,? gracias)$")
+_DESPEDIDA = re.compile(r"(gracias,? )?(eso es todo|ya esta|nada mas|es todo|cierra la conversacion|cierra conversacion|"
+                        r"termina(mos)?|hemos terminado|puedes descansar|hasta luego|hasta manana|buenas noches|adios|chao|"
+                        r"bye|listo,? gracias|ya termine|nada,? gracias|nada mas,? gracias|eso es todo,? gracias|"
+                        r"ya esta,? gracias|callate|silencio|ya no te quiero escuchar|no te quiero escuchar|dejalo ahi|"
+                        r"para ya|ya basta|basta)$")
 
 
 def _norm(t: str) -> str:

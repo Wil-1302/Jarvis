@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# JARVIS — su huella de voz (D-015). Ejecútelo en una terminal, frente al portátil.
+#   jarvis-voz enrolar           12 frases con cuenta atrás → ~/.config/jarvis/voz.npz (600). Sin audio.
+#   jarvis-voz medir [--aplicar] falsos rechazos/aceptos en condiciones reales y umbral sugerido
+#   jarvis-voz borrar            elimina la huella y las medidas
+set -euo pipefail
+FACE="$(cd "$(dirname "$0")/../face" && pwd)"
+case "${1:-}" in
+  borrar) rm -fv ~/.config/jarvis/voz.npz ~/.config/jarvis/medidas-voz.json; exit ;;
+  enrolar|medir) ;;
+  *) sed -n '2,6p' "$0"; exit 1 ;;
+esac
+cd "$FACE"; export JARVIS_VOCES_PRUEBA="${JARVIS_VOCES_PRUEBA:-$HOME/.local/share/jarvis/voces-prueba}"
+exec .venv/bin/python -m jarvis.enrolar "$@"

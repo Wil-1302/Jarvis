@@ -51,6 +51,16 @@ class Conversacion:
         self.q: queue.Queue = queue.Queue(maxsize=4)
         self._lock = threading.RLock()
         self.frases = Frases(tts.get_engine())
+        # Verificación de hablante (D-015): solo la voz del señor. Sin huella → desactivada (con aviso).
+        self.verif = None
+        self.exento = False  # la 1.ª frase tras Super+J no se verifica (está frente al teclado)
+        if (c.get("hablante") or {}).get("activo", True):
+            from jarvis import hablante
+            try:
+                self.verif = hablante.cargar((c.get("hablante") or {}).get("umbral"))
+            except Exception as e:
+                print(f"[Voz] No se pudo cargar la huella: {e}")
+            print(f"[Voz] Verificación de hablante: {'activa (umbral %.2f)' % self.verif.umbral if self.verif else 'DESACTIVADA: sin huella (scripts/jarvis-voz enrolar)'}")
 
     # ── HUD ──
     def _hud(self, fase: str) -> None:
@@ -88,6 +98,7 @@ class Conversacion:
             print(f"[Conv] Detenido ({source}).")
             return
         self._entrar()
+        self.exento = True
         tts.play_audio(sonido("activo", tts.get_engine().rate))
         self._escuchando()
 
@@ -140,6 +151,15 @@ class Conversacion:
         while True:
             u = self.q.get()
             hablando = self.ocupado.is_set()
+            # Verificación ANTES de transcribir: una voz ajena no se transcribe ni se envía a ningún sitio.
+            if self.verif is not None and not (self.exento and self.estado == CONVERSACION):
+                ok, p = self.verif.es_el_senor(u.audio)
+                if not ok:
+                    print("[Voz] voz no reconocida")
+                    continue
+                if self.debug:
+                    print(f"[Voz] reconocida ({p:.2f})")
+            self.exento = False
             t_stt0 = time.time()
             texto = transcribe_audio(u.audio).strip()
             t_stt = time.time() - t_stt0
@@ -152,7 +172,7 @@ class Conversacion:
             if self.estado == ESPERA:
                 llama, resto = detectar(texto)
                 if not llama:
-                    if self.debug:
+                    if self.debug and self.verif is None:
                         from jarvis.nombre import parecido
                         r, pos = parecido(texto)
                         print(f"[VAD] sin nombre ({len(texto.split())} palabras, STT {t_stt:.2f} s, "
@@ -190,6 +210,20 @@ class Conversacion:
             self._hud("speaking")
             tts.play_audio(audio, rate)
             self._salir(con_sonido=False)
+            return
+        # Música y volumen: atajo local, sin cerebro (D-016)
+        from jarvis import acciones
+        r = acciones.intentar(resto)
+        if r:
+            texto, cerrar = r
+            print(f"[Jarvis] {texto}")
+            self.broadcast({"type": "response", "text": texto})
+            self._hud("speaking")
+            tiempos["respuesta"] = time.time() - u.t_end
+            tts.speak(texto)
+            print("[Tiempos] " + " · ".join(f"{k} {v:.2f}s" for k, v in tiempos.items()) + " (música)")
+            if cerrar:
+                self._salir(con_sonido=False)
             return
         cat = clasificar(resto)
         if cat:
@@ -242,8 +276,8 @@ class Conversacion:
 
         dicho = tts.speak_stream(chunks(), on_first_audio=primer_audio)
         if "e" in resultado and not dicho:
-            msg = resultado["e"].args[0] if resultado["e"].args else "Lo siento, señor, algo ha fallado."
-            dicho = msg if isinstance(msg, str) and msg.startswith(("Señor", "Lo siento")) else "Lo siento, señor, algo ha fallado."
+            msg = resultado["e"].args[0] if resultado["e"].args else "Lo siento, algo ha fallado."
+            dicho = msg if isinstance(msg, str) and msg.startswith(("No consigo", "El cerebro", "Lo siento")) else "Lo siento, algo ha fallado."
             tts.speak(dicho)
         print(f"[Jarvis] {dicho}")
         self.broadcast({"type": "response", "text": dicho})

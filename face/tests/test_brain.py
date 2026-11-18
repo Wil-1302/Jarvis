@@ -48,7 +48,7 @@ def test_limite_de_claude_cambia_a_respaldo_y_avisa(monkeypatch):
     r, backup = B.Brain(on_backup=avisos.append).ask("hola")
     assert (r, backup) == ("Respuesta de GPT.", True)
     assert llamadas == [None, "openai/gpt-5.6-terra"]
-    assert avisos == ["Señor, cambio al cerebro de respaldo."]
+    assert avisos == ["Cambio al cerebro de respaldo."]
 
 
 def test_timeout_no_reintenta(monkeypatch):

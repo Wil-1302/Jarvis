@@ -10,8 +10,11 @@
 - `~/Proyectos/Jarvis/scripts/bin/jarvis-abrir "<nombre>"`: abre una aplicación instalada.
 - `~/Proyectos/Jarvis/scripts/bin/jarvis-documento <archivo.html> "<nombre>"`: convierte un HTML del workspace
   en .docx en ~/Documentos/Jarvis y lo abre en LibreOffice Writer.
-- `playerctl` (play, pause, play-pause, next, previous, stop, status, metadata) y `wpctl` (volumen y silencio
-  de @DEFAULT_AUDIO_SINK@), `notify-send`.
+- `playerctl` (play, pause, play-pause, next, previous, stop, status, metadata, volume) y `wpctl` (volumen y
+  silencio de @DEFAULT_AUDIO_SINK@), `notify-send`.
+- **Volumen de la música = el de Spotify** (`playerctl --player=spotify volume 0.6`), NO el del portátil.
+  Usa `wpctl` solo si te piden expresamente el volumen del sistema/la laptop. (Face atiende en local casi todas
+  las órdenes de música y volumen; si te llega una, es que no encajó: resuélvela igual.)
 - Las skills del workspace explican cuándo usar cada una.
 
 ## Líneas rojas
