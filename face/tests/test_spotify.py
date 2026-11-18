@@ -56,3 +56,46 @@ def test_api_que_funciona_no_toca_el_escritorio(monkeypatch, limpio):
     monkeypatch.setattr(S, "buscar", lambda **kw: ("spotify:track:x", "Vivo", "Gustavo Cerati"))
     monkeypatch.setattr(S, "reproducir", lambda uri: True)
     assert S.poner(cancion="vivo") == ("Vivo", "Gustavo Cerati") and limpio == []
+
+
+# ─── Spotify cerrado: se abre y se espera a la VENTANA (MPRIS llega antes y Ctrl+K caería en el vacío) ───
+def test_cerrado_lo_abre_y_espera_a_la_ventana(monkeypatch):
+    estado = {"mpris": False, "ventana": False, "lanzado": [], "vueltas": 0}
+
+    def run(cmd, **kw):
+        if cmd[:2] == ["hyprctl", "dispatch"]:
+            estado["lanzado"].append(cmd[2])
+        return S.subprocess.CompletedProcess(cmd, 0, "", "")
+
+    def dormir(s):
+        estado["vueltas"] += 1
+        if estado["lanzado"] and estado["vueltas"] >= 3:
+            estado["mpris"] = True          # primero aparece MPRIS…
+        if estado["lanzado"] and estado["vueltas"] >= 8:
+            estado["ventana"] = True        # …y bastante después la ventana
+
+    monkeypatch.setattr(S.subprocess, "run", run)
+    monkeypatch.setattr(S, "abierto", lambda: estado["mpris"])
+    monkeypatch.setattr(S, "ventana_abierta", lambda: estado["ventana"])
+    monkeypatch.setattr(S.time, "sleep", dormir)
+    assert S.asegurar_abierto(ventana=True)
+    assert estado["lanzado"] == ['hl.dsp.exec_cmd("spotify")'] and estado["ventana"]
+    assert estado["vueltas"] >= 9   # esperó a la ventana y luego a que se asiente
+
+
+def test_cerrado_que_no_arranca_falla_sin_colgarse(monkeypatch):
+    monkeypatch.setattr(S.subprocess, "run", lambda cmd, **kw: S.subprocess.CompletedProcess(cmd, 0, "", ""))
+    monkeypatch.setattr(S, "abierto", lambda: False)
+    monkeypatch.setattr(S, "ventana_abierta", lambda: False)
+    monkeypatch.setattr(S.time, "sleep", lambda s: None)
+    assert S.asegurar_abierto(ventana=True) is False
+
+
+def test_abierto_sin_ventana_no_relanza(monkeypatch):
+    lanz = []
+    monkeypatch.setattr(S.subprocess, "run", lambda cmd, **kw: lanz.append(cmd) or S.subprocess.CompletedProcess(cmd, 0, "", ""))
+    monkeypatch.setattr(S, "abierto", lambda: True)
+    vent = iter([False, False, True, True])
+    monkeypatch.setattr(S, "ventana_abierta", lambda: next(vent))
+    monkeypatch.setattr(S.time, "sleep", lambda s: None)
+    assert S.asegurar_abierto(ventana=True) and lanz == []

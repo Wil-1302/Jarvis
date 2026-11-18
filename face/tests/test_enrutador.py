@@ -19,3 +19,11 @@ def test_trabajo(t):
 
 def test_apagado():
     assert elegir("hola", {"llm": {"enrutado": {"activo": False}}})[0] is None
+
+
+# Regresión: una orden de música que se le escape al atajo local nunca va a la vía ligera de charla.
+@pytest.mark.parametrize("t", ["Ponte unas músicas para sufrir", "pon algo para bailar", "¿Qué canción está sonando?",
+                               "Ahora reproduce duels de Jessie Joy", "Ponme una playlist para estudiar",
+                               "Hazme una presentación en Canva sobre el reciclaje", "Busca imágenes de volcanes"])
+def test_musica_y_creacion_nunca_van_a_charla(t):
+    assert tipo(t) == "trabajo"

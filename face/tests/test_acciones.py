@@ -53,3 +53,30 @@ def test_volumen_del_sistema_si_se_dice(sp):
                                    "pon un recordatorio para mañana", "ponme un vídeo de gatos en YouTube"])
 def test_lo_demas_va_al_cerebro(sp, frase):
     assert A.intentar(frase) is None and sp["buscar"] == []
+
+
+# ─── Regresión 2026-11-18: órdenes reales del registro que acabaron en el cerebro (que no puede buscar música) ───
+@pytest.mark.parametrize("frase,esperado", [
+    ("Ponte unas músicas para sufrir en Spotify, así para llorarme y colgarme.", ("musica para sufrir", None)),
+    ("Ahora Spotify reproduce duels de Jessie Joy.", ("duels", "jessie joy")),
+    ("No pidas confirmación, reproduce música en Spotify, dueles de Yesy Joy.", ("dueles", "yesy joy")),
+    ("Reproduce dueles de Jessie y Joy en Spotify.", ("dueles", "jessie y joy")),
+    ("¿Puedes poner música de Gustavo Cerati?", (None, "gustavo cerati")),
+    ("Oye, ahora pon Persiana americana", ("persiana americana", None)),
+    ("Pon música triste", ("musica triste", None)),
+])
+def test_regresion_ordenes_reales(sp, frase, esperado):
+    texto, cerrar = A.intentar(frase)
+    assert sp["buscar"] == [esperado] and cerrar
+
+
+@pytest.mark.parametrize("frase", ["ponte las pilas", "ponte serio", "no me pongas música",
+                                   "¿qué canción está sonando?", "podrías poner una alarma con música",
+                                   "Ahora explícame la fotosíntesis"])
+def test_regresion_no_es_poner_musica(sp, frase):
+    assert A.intentar(frase) is None and sp["buscar"] == []
+
+
+def test_pon_spotify_reanuda_y_no_es_volumen(sp):
+    assert A.intentar("pon Spotify") == ("Reanudo la música.", True)
+    assert sp["control"] == ["play"] and sp["vol"] == []

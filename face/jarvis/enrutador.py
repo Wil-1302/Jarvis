@@ -18,7 +18,11 @@ _TRABAJO = re.compile(
     r"busca|buscar|investiga|averigua|consulta|tiempo hace|tiempo hara|tiempo va|clima|pronostico|noticias|precio|"
     r"cotizacion|resultado del partido|recuerdame|recordatorio|alarma|temporizador|agenda|calendario|cita|"
     r"correo|email|envia|enviale|manda|mandale|traduce|resume|resumen|analiza|calcula|"
-    r"pagina|web|url|spotify|volumen|reproduce|aplicacion|app|navegador|chrome|libreoffice|pantalla|captura)\b")
+    r"pagina|web|url|spotify|volumen|reproduce|aplicacion|app|navegador|chrome|libreoffice|pantalla|captura|"
+    # Música: face la atiende en local; si una orden se le escapa, que llegue al agente completo y no a la vía
+    # ligera de charla (que no tiene herramientas) — ver test de regresión.
+    r"musica|musicas|cancion|canciones|playlist|album|disco|cantante|reproducir|reproduzcas|pausa|"
+    r"pon(me|te|le)? (algo|una|unas|un|el|la|los|las|musica)|canva|imagen|imagenes|foto|fotos|receta)\b")
 
 
 def _norm(t: str) -> str:

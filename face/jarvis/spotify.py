@@ -146,7 +146,7 @@ def _pista() -> str:
 def reproducir_busqueda(consulta: str, por_artista: bool = False) -> bool:
     """Busca en la app (Ctrl+K) y reproduce: el primer resultado o, por artista, uno de sus 5 primeros temas
     (`artist:X` deja solo temas suyos). True si la app quedó sonando."""
-    if not asegurar_abierto() or not _ydotool_listo():
+    if not asegurar_abierto(ventana=True) or not _ydotool_listo():
         return False
     previa = _ventana_activa()
     guardado = _clip_guardar()
@@ -222,16 +222,34 @@ def abierto() -> bool:
     return _pc("status").returncode == 0
 
 
-def asegurar_abierto() -> bool:
-    if abierto():
+def ventana_abierta() -> bool:
+    """¿Hay una ventana de Spotify en Hyprland? (MPRIS aparece antes que la ventana al arrancar.)"""
+    try:
+        r = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True, timeout=3)
+        return any((c.get("class") or "").lower() == "spotify" for c in json.loads(r.stdout or "[]"))
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False
+
+
+ESPERA_ARRANQUE = 20.0   # s como mucho hasta que haya MPRIS y ventana
+ASENTAR = 2.5            # s tras aparecer la ventana: la búsqueda rápida (Ctrl+K) aún no responde antes
+
+
+def asegurar_abierto(ventana: bool = False) -> bool:
+    """Spotify en marcha (MPRIS) y, si `ventana`, con su ventana visible y lista para recibir teclas.
+    Si estaba cerrado lo abre y espera."""
+    if abierto() and (not ventana or ventana_abierta()):
         return True
-    # Hyprland 0.57 (config Lua): lanzar como hija del compositor, fuera de cualquier encierro.
-    subprocess.run(["hyprctl", "dispatch", 'hl.dsp.exec_cmd("spotify")'], capture_output=True, timeout=4)
-    for _ in range(40):
+    if not abierto():
+        print("[Música] Spotify estaba cerrado: lo abro.")
+        # Hyprland 0.57 (config Lua): lanzar como hija del compositor, fuera de cualquier encierro.
+        subprocess.run(["hyprctl", "dispatch", 'hl.dsp.exec_cmd("spotify")'], capture_output=True, timeout=4)
+    for _ in range(int(ESPERA_ARRANQUE / 0.5)):
         time.sleep(0.5)
-        if abierto():
-            time.sleep(1.0)
+        if abierto() and (not ventana or ventana_abierta()):
+            time.sleep(ASENTAR if ventana else 1.0)
             return True
+    print("[Música] Spotify no terminó de abrirse a tiempo.")
     return False
 
 
