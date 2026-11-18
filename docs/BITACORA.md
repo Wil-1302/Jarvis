@@ -163,3 +163,14 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
 - Tests: 94 en verde.
 - Pendiente: ⏸ prueba de voz con la verificación de hablante (enrolar primero) → después, push.
 
+## 2026-11-18 · Push por SSH y limpieza de la sesión de prueba
+- `ssh -T` saluda al usuario de GitHub → remoto `origin` a SSH. `revisar-push.sh` (y el hook): nada sensible en 25
+  commits → push `029e820..ad3f19c`.
+- Sesión `prueba-prosa`: `openclaw memory forget` con el gateway parado → 0 filas indexadas (nada que borrar). Quedaba su
+  transcripción archivada (archivo `.deleted….zst` y fila en `session_transcript_archives`): borradas, VACUUM e
+  `integrity_check` ok; gateway arrancado y `/v1/models` responde. Quedan solo eventos de auditoría (metadatos, sin
+  contenido) y la lápida de memoria (id).
+- Visto de paso: sigue en `session_transcript_archives` el archivo de la sesión `face:jarvis` borrada el 17/11 (la
+  conversación de 18 turnos). ⏸ decidir si se borra también.
+- La huella de voz NO está en ~/.config/jarvis/voz.npz (ni en otro sitio): face sigue con la verificación desactivada.
+

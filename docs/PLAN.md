@@ -28,7 +28,7 @@ historial en `docs/BITACORA.md`.
 
 ## Bloque 3 — Entorno de usuario
 - [x] Python 3.11.18 (uv), prefijo npm `~/.local`, git, llave SSH
-- [ ] ⏸ Pegar la llave correcta en GitHub (la registrada es otra) → `ssh -T` → remoto a SSH
+- [x] Llave correcta en GitHub → `ssh -T` OK → remoto a SSH (2026-11-18)
 
 ## Bloque 4 — Ollama ❌ obsoleto (D-008)
 
@@ -94,4 +94,4 @@ historial en `docs/BITACORA.md`.
 - [x] Ubicación por defecto en la memoria privada del agente (D-020)
 - [x] Enrutado charla → GPT, trabajo → Claude (D-017)
 - [x] Revisión antes del push (`scripts/revisar-push.sh`, hook pre-push)
-- [ ] ⏸ Borrar el journal de usuario con las transcripciones (sudo)
+- [x] Journal de usuario con las transcripciones borrado (por el señor, 2026-11-18)
