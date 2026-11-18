@@ -83,3 +83,24 @@ def test_azure_ssml_escapa_y_aplica_prosodia(monkeypatch):
 def test_pausa_del_cerebro_dice_lo_recibido(eng):
     T.speak_stream(iter(["Voy a buscarlo", T.FLUSH, T.FLUSH, " ahora mismo. Listo."]))
     assert eng.dichas == ["Voy a buscarlo", "ahora mismo.", "Listo."]
+
+
+# --- Prosa hablada: el Markdown no llega a la voz (también al vuelo, carácter a carácter) ---
+import pytest as _pytest
+from jarvis.tts import FiltroProsa, _clean, prosa
+
+
+@_pytest.mark.parametrize("md,voz", [
+    ("Te propongo tres cenas:\n\n1. **Tortilla**: rápida.\n2. Pasta con *pesto*\n3. Ensalada 🥗\n\nBuen provecho.",
+     "Te propongo tres cenas: Tortilla: rápida. Pasta con pesto. Ensalada. Buen provecho."),
+    ("## Clima en Lima\n- Hoy: 22 °C\n- Mañana: 24 °C", "Clima en Lima. Hoy: 22 °C. Mañana: 24 °C"),
+    ("Mira:\n```bash\nls -la\n```\nEso lista los archivos.", "Mira: Eso lista los archivos."),
+    ("| Día | Máx |\n|---|---|\n| Lunes | 22 |\n", "Día, Máx. Lunes, 22."),
+    ("Antes\n- - -\ndespués", "Antes. después"),
+    ("En 2024 hubo -5 grados y 3.5 millones de *personas*.", "En 2024 hubo -5 grados y 3.5 millones de personas."),
+    ("snake_case_var y [la web](https://x.y) o https://x.y/z.", "snake_case_var y la web o."),
+])
+def test_markdown_a_prosa(md, voz):
+    assert _clean(prosa(md)) == voz
+    f = FiltroProsa()
+    assert _clean("".join(f.feed(c) for c in md) + f.flush()) == voz

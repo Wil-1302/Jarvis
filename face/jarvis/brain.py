@@ -23,6 +23,12 @@ _REPO_ENV = Path(__file__).resolve().parents[2] / ".env"   # antiguo (solo compa
 # Refuerzo a: secretos de face fuera del repo y fuera del alcance del gateway (InaccessiblePaths).
 SECRETS = Path(os.environ.get("JARVIS_SECRETS", Path.home() / ".config" / "jarvis" / "secrets.env"))
 AVISO_RESPALDO = "Cambio al cerebro de respaldo."
+# Va como mensaje `system` en cada petición: OpenClaw lo añade a las instrucciones del agente en ese turno
+# (extraSystemPrompt), así vale igual para Claude y para GPT, que tiende a contestar en listas.
+ESTILO_VOZ = ("Tu respuesta se leerá en voz alta. Responde en prosa hablada, con frases corridas: nada de listas, "
+              "viñetas, numeraciones, encabezados, tablas, negritas ni ningún otro Markdown, y sin emojis ni URLs. "
+              "Si hay varios elementos, enlázalos en una o dos frases (por ejemplo: «primero…, después… y por "
+              "último…»). Lo normal: de una a tres frases.")
 
 # Errores que justifican cambiar de cerebro (límites, cuotas, auth del proveedor, caídas).
 _PATRON_FALLO_MODELO = re.compile(
@@ -60,6 +66,7 @@ class Brain:
     model_override: str | None = None        # cerebro elegido por voz (x-openclaw-model); None = el de OpenClaw
     backup_model: str = "openai/gpt-5.6-terra"
     on_backup: Callable[[str], None] | None = None   # se llama con AVISO_RESPALDO antes de reintentar
+    estilo: str = ESTILO_VOZ                  # instrucción de estilo hablado ("" = no enviar)
 
     @classmethod
     def from_config(cls, cfg: dict, on_backup: Callable[[str], None] | None = None) -> "Brain":
@@ -75,7 +82,12 @@ class Brain:
             model_override=oc.get("model") or oc.get("primary_model") or None,
             backup_model=oc.get("backup_model", cls.backup_model),
             on_backup=on_backup,
+            estilo=oc.get("estilo", ESTILO_VOZ) or "",
         )
+
+    def _mensajes(self, text: str) -> list[dict]:
+        m = [{"role": "user", "content": text}]
+        return [{"role": "system", "content": self.estilo}, *m] if self.estilo else m
 
     def _post(self, text: str, model: str | None) -> str:
         token = _leer_env("OPENCLAW_GATEWAY_TOKEN")
@@ -85,7 +97,7 @@ class Brain:
         if model:
             headers["x-openclaw-model"] = model
         body = {"model": self.agent, "user": self.user,
-                "messages": [{"role": "user", "content": text}]}
+                "messages": self._mensajes(text)}
         try:
             r = httpx.post(f"{self.base_url}/chat/completions", json=body, headers=headers,
                            timeout=httpx.Timeout(self.timeout, connect=5.0))
@@ -114,7 +126,7 @@ class Brain:
         if model:
             headers["x-openclaw-model"] = model
         body = {"model": self.agent, "user": self.user, "stream": True,
-                "messages": [{"role": "user", "content": text}]}
+                "messages": self._mensajes(text)}
         full = ""
         try:
             with httpx.stream("POST", f"{self.base_url}/chat/completions", json=body, headers=headers,

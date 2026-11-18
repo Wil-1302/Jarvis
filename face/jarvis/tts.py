@@ -287,16 +287,101 @@ def _split_sentences(text: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+_MARCA_LINEA = re.compile(r"^\s*(?:(?:#{1,6}|>|[-*+•●▪]|\d{1,2}[.)])\s+)+")
+_LINEA_SOLO_MARCAS = re.compile(r"^\s*(?:(?:[-*_=]\s*){3,}|\|?(?:\s*:?-{2,}:?\s*\|)+\s*:?-*:?\s*)\s*$")
+_EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F\u200D]+")
+_URL = re.compile(r"(?:https?://|www\.)\S*[^\s.,;:!?)»]")
+
+
+class FiltroProsa:
+    """Convierte en prosa, al vuelo, el Markdown de línea que llega por streaming: quita viñetas, numeraciones,
+    encabezados, citas, reglas y bloques de código, y cierra con punto las líneas sin puntuación final (cada
+    elemento de una lista se dice como una frase). Solo retiene unos pocos caracteres al principio de cada línea
+    (para reconocer la marca); el resto pasa en el acto. Lo de dentro de la línea lo limpia `_clean`."""
+
+    _AMBIGUOS = set(" \t#>*-+•●▪0123456789.)|`_=:")
+
+    def __init__(self):
+        self.pend = ""            # principio de línea aún sin decidir
+        self.inicio = True
+        self.saltar = False       # línea descartada (valla de código, regla, separador de tabla)
+        self.en_codigo = False
+        self.ultimo = ""          # último carácter no blanco emitido en la línea actual
+
+    def _decidir(self, final: bool) -> str:
+        p, self.pend, self.inicio = self.pend, "", False
+        if p.lstrip().startswith("```"):
+            self.en_codigo, self.saltar = not self.en_codigo, True
+            return ""
+        if self.en_codigo or (final and _LINEA_SOLO_MARCAS.match(p)):
+            self.saltar = True
+            return ""
+        if p.lstrip().startswith("|"):   # fila de tabla (llega entera): celdas separadas por comas
+            return ", ".join(c.strip() for c in p.strip().strip("|").split("|") if c.strip())
+        return _MARCA_LINEA.sub("", p)
+
+    def _salida(self, t: str) -> str:
+        if t.strip():
+            self.ultimo = t.rstrip()[-1]
+        return t
+
+    def _fin_linea(self) -> str:
+        out = ""
+        if self.inicio and self.pend:
+            out = self._salida(self._decidir(final=True)) if not self.saltar else ""
+        cierre = ""
+        if self.ultimo and self.ultimo not in ".!?…:;,":
+            cierre = "."
+        self.pend, self.inicio, self.saltar, self.ultimo = "", True, False, ""
+        return out + cierre + " "
+
+    def feed(self, texto: str) -> str:
+        out = []
+        for ch in texto:
+            if ch == "\n":
+                out.append(self._fin_linea())
+                continue
+            if self.saltar or (self.en_codigo and not self.inicio):
+                continue
+            if self.inicio:
+                self.pend += ch
+                p = self.pend.lstrip()
+                if p.startswith("|") or (p and set(p) <= set("-*_= ") and len(self.pend) < 200):
+                    continue   # fila de tabla o posible regla (---): se decide al acabar la línea
+                if ch not in self._AMBIGUOS or len(self.pend) >= 8:
+                    if (ch == "`" or "`" in self.pend) and len(self.pend.strip()) < 3:
+                        continue
+                    out.append(self._salida(self._decidir(final=False)))
+                continue
+            out.append(self._salida(ch))
+        return "".join(out)
+
+    def flush(self) -> str:
+        """Lo retenido (al final o cuando el cerebro hace una pausa)."""
+        if self.inicio and self.pend and not self.saltar:
+            return self._salida(self._decidir(final=True))
+        return ""
+
+
+def prosa(texto: str) -> str:
+    f = FiltroProsa()
+    return f.feed(texto) + f.flush()
+
+
 def _clean(text: str) -> str:
-    """Quita markdown que no se debe leer en voz alta."""
+    """Quita el Markdown de dentro de la línea, URLs y emojis (lo de línea lo hace FiltroProsa)."""
     text = re.sub(r"```.*?```", " ", text, flags=re.S)
-    text = re.sub(r"[*_`#>]+", "", text)
-    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    text = re.sub(r"!?\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    text = _URL.sub("", text)
+    text = _EMOJI.sub("", text)
+    text = re.sub(r"\s*\|\s*", ", ", text.strip().strip("|"))
+    text = re.sub(r"(?<!\w)[*_]{1,3}|[*_]{1,3}(?!\w)|[`#>~]+", "", text)
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
 def synth(text: str) -> np.ndarray:
-    return get_engine().synth(_clean(text))
+    return get_engine().synth(_clean(prosa(text)))
 
 
 def is_speaking() -> bool:
@@ -336,18 +421,20 @@ def speak_stream(chunks, on_first_audio=None) -> str:
 
     def splitter():
         buf = ""
+        filtro = FiltroProsa()
         try:
             for c in chunks:
                 if player.interrupt.is_set():
                     break
                 if c is FLUSH:
+                    buf += filtro.flush()
                     if len(buf.strip()) >= 2:
                         sentences.put(buf.strip())
                         buf = ""
                         primero[0] = False
                     continue
                 full.append(c)
-                buf += c
+                buf += filtro.feed(c)
                 while True:
                     m = _SENT_END.match(buf)
                     # 1.er trozo: cortar en la primera coma tras ~20 caracteres para empezar a hablar antes
@@ -372,6 +459,7 @@ def speak_stream(chunks, on_first_audio=None) -> str:
                     if len(s) >= 2:
                         sentences.put(s)
                     buf = buf[m.end():]
+            buf += filtro.flush()
             if buf.strip():
                 sentences.put(buf.strip())
         finally:

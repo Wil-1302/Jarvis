@@ -32,7 +32,9 @@ def test_envia_solo_mensaje_nuevo_y_user_estable(monkeypatch):
     url, body, headers = vistos[0]
     assert url.endswith("/v1/chat/completions") and url.startswith("http://127.0.0.1:")
     assert body["model"] == "openclaw/jarvis" and body["user"] == "face:jarvis"
-    assert body["messages"] == [{"role": "user", "content": "hola"}]
+    # Solo el mensaje nuevo, precedido de la instrucción de estilo hablado (prosa, sin Markdown) para ambos cerebros.
+    assert body["messages"] == [{"role": "system", "content": B.ESTILO_VOZ}, {"role": "user", "content": "hola"}]
+    assert "prosa" in B.ESTILO_VOZ and "listas" in B.ESTILO_VOZ
     assert headers["Authorization"] == "Bearer " + "t" * 48
     assert "x-openclaw-model" not in headers
 
