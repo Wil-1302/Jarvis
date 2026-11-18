@@ -31,8 +31,12 @@
 
 - PipeWire 1.6.11 + WirePlumber.
 - Salidas: Ryzen HD Audio (analógica) y **Alaxe (Bluetooth, salida por defecto)**.
-- Entradas: micrófono analógico Ryzen HD Audio y `bluez_input` (micrófono del Bluetooth, fuente por defecto).
-  Para STT conviene el micrófono interno (el perfil HFP del Bluetooth degrada la calidad y el audio de salida).
+- Entradas: micrófono interno = DMIC del Realtek ALC257 (pin 0x12, `alsa_input.pci-0000_05_00.6.analog-stereo`).
+  El ACP (`snd_pci_acp6x`) no crea tarjeta en este equipo (LOQ 15ARP9). **Ganancia: 0 dB del hardware = 10 % del
+  control** ("Base Volume"); estaba al 100 % (+60 dB) y solo daba saturación. Queda en 20 % (+18 dB).
+- Bluetooth: autoswitch a HSP/HFP desactivado (`~/.config/wireplumber/wireplumber.conf.d/51-jarvis-bluetooth.conf`):
+  los audífonos siguen siempre en A2DP; su micrófono no se usa. Jarvis graba del micrófono del portátil.
+- Escritorio: Hyprland 0.57 con Caelestia (no KDE). Atajos propios en `~/.config/caelestia/hypr-user.lua`.
 - `arecord` (alsa-utils) no instalado; no es imprescindible (`pw-record` sirve).
 
 ## Herramientas

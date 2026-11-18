@@ -87,3 +87,17 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
   (7.3.4-arch1-1) ya no tiene módulos (instalado arch1-2) → hace falta reiniciar.
 - doctor.sh: corregidos falsos rojos de loopback (la regex miraba la columna del par remoto).
 - Pendiente: ⏸ login de Codex, ⏸ reinicio + ufw, ⏸ prueba de voz, prueba de failover con GPT.
+
+## 2026-11-17 · Bloque 7 — Voz real: micrófono, Bluetooth, ducking, atajo
+- Tras reiniciar: ufw activo y uinput cargado. face arrancó, pero no oía y la música sonaba distorsionada.
+- Diagnóstico (wpctl/pw-top/pactl): los audífonos BT "Alaxe" estaban en HFP (mono, 16 kHz, quantum 2048) porque face
+  abría su micrófono (fuente por defecto, **silenciada**) por pipewire-alsa (PortAudio); Spotify salía en mono por HFP.
+  Sin xruns. Graph a 48 kHz, sin latencia forzada.
+- El micrófono del portátil estaba al 100 % = +60 dB (Base Volume 10 % = 0 dB) → todo a −32768. Ahora en 20 %.
+- Hecho: `mic.py` (un `pw-record` compartido), `wake.py`/`stt.py` sobre él (umbrales adaptativos al ruido),
+  autoswitch BT apagado y A2DP restaurado, `ducking.py` (probado: baja al 20 % y restaura exacto, también tras una
+  "caída"), atajo Super+J (socket Unix), `hf_offline.py` (sin avisos de HF al arrancar).
+- Problemas: el ducking bajaba la propia voz (pipewire-alsa no publica el PID) y WirePlumber memorizó ese 4 % → se
+  nombra el stream con `PIPEWIRE_PROPS` y se devolvió al 100 %.
+- Pruebas: "Hey Jarvis" sintético por los altavoces → micrófono: 0,995 (la cadena funciona). Tomas del señor: máx 0,056
+  (sin confirmar que hablara en la ventana; ruido de la sala variable, 0,008–0,066 RMS). Falta calibrar el umbral con él.

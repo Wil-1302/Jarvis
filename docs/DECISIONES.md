@@ -159,3 +159,18 @@ Un asistente propio en Python 3.12 (uv), escrito desde cero en unos 6.100 línea
      `node_modules` globales, `~/.local/share/{claude,applications}` y `scripts/` del repo;
   e) `NoNewPrivileges` (sin sudo/setuid para nada que lance el gateway), `RestrictSUIDSGID`, `UMask=0077`;
      además sesiones visibles solo por agente y agent-to-agent desactivado (recomendación de `security audit`).
+
+## D-009: Audio de face: un micrófono compartido por PipeWire y ducking propio (2026-11-17)
+- **Problema:** face no oía y la música se distorsionaba. PyAudio (wake word) y sounddevice (STT) abrían la fuente
+  por defecto por pipewire-alsa: el micrófono de los audífonos BT (silenciado). Abrirlo pasaba los audífonos a
+  HSP/HFP (mono 16 kHz) → música distorsionada. El micrófono del portátil estaba a +60 dB (saturado).
+- **Decisión:** un solo `pw-record` (cliente nativo de PipeWire) con `--target` al micrófono del portátil, 16 kHz mono
+  remuestreado en el stream y latencia de nodo 80 ms: el grafo sigue a 48 kHz y su quantum no cambia. Wake word y STT
+  se suscriben al mismo flujo (`face/jarvis/mic.py`). Autoswitch BT de WirePlumber desactivado.
+- **Ducking:** guardar y restaurar el volumen de cada sink-input (`face/jarvis/ducking.py`), al 20 % del que tenía.
+  Descartado el ducking por roles de WirePlumber: exige enrutar todos los streams por sinks loopback por rol (cambia
+  el grafo de todo el sistema). Estado en `$XDG_RUNTIME_DIR/jarvis/ducking.json` antes de tocar nada; lo deshacen el
+  arranque y el `ExecStopPost` (también si face se cae). Si el usuario cambió un volumen entretanto, se respeta.
+  La voz de JARVIS se llama `JARVIS`/`jarvis-voz` (`PIPEWIRE_PROPS` en run.sh) y no se baja.
+  Límite conocido: si un programa se cierra mientras está bajado, WirePlumber puede recordar su 20 % la próxima vez.
+- **Atajo:** Super+J (Hyprland) → `scripts/bin/jarvis-escucha` → socket Unix `$XDG_RUNTIME_DIR/jarvis/face.sock` (600).

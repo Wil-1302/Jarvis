@@ -53,7 +53,8 @@ historial en `docs/BITACORA.md`.
 - [x] Puente `jarvis/brain.py` (sin historial, timeout 180 s, sin fallback silencioso, respaldo con aviso)
 - [x] `jarvis-face.service` activo; prueba HUD → face → OpenClaw → Claude → voz por WebSocket
 - [x] Tests: 23 en verde (puente, seguridad del HUD, STT)
-- [ ] ⏸ Prueba de voz con el señor
+- [x] Audio: un micrófono compartido por PipeWire, BT siempre en A2DP, ducking al 20 %, atajo Super+J, HF sin red (D-009)
+- [ ] ⏸ Prueba de voz con el señor (calibrar el umbral de la wake word con sus tomas)
 
 ## Bloque 7 — Voz y personalidad
 - [ ] STT con idioma configurable (es por defecto); TTS con `lang_code` configurable
