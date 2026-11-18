@@ -17,6 +17,10 @@ import numpy as np
 import sounddevice as sd
 import yaml
 
+from jarvis import hf_offline
+hf_offline.activate()  # antes de faster-whisper/kokoro (importan huggingface_hub)
+
+from jarvis import ducking
 from jarvis.brain import Brain, BrainError
 from jarvis.stt import record_until_silence, transcribe_audio, set_abort_event
 from jarvis.tts import speak, speak_streamed, is_speaking, stop_speaking
@@ -144,10 +148,15 @@ def _play_beep() -> None:
 
 # ─── Pipeline ───
 
+def _duck_factor() -> float:
+    return float((_load_config().get("audio") or {}).get("ducking", 0.2))
+
+
 def handle_wake() -> None:
     _abort.clear()
     try:
-        _handle_wake_inner()
+        with ducking.ducked(_duck_factor()):  # desde la activación hasta terminar de responder
+            _handle_wake_inner()
     except _Aborted:
         print("[Jarvis] Cancelado.")
     except Exception as e:
@@ -222,7 +231,8 @@ def _handle_typed_command(text: str) -> None:
     try:
         response = _process_request(text)
         print(f"[Jarvis] {response}")
-        _speak_streamed_if_unmuted(response)
+        with ducking.ducked(_duck_factor()):
+            _speak_streamed_if_unmuted(response)
     except _Aborted:
         print("[Jarvis] Cancelado.")
     finally:
@@ -248,6 +258,11 @@ def main() -> None:
 
     cfg = _load_config()
     print("[Jarvis] Arrancando...")
+    ducking.restore()  # por si una ejecución anterior se cayó con los sonidos bajados
+    from jarvis.mic import get_hub
+    get_hub()  # un solo stream de micrófono (PipeWire) para wake word y STT
+    from jarvis.trigger import start_trigger_server
+    start_trigger_server()  # atajo global (Super+J → jarvis-escucha)
     port = int(cfg.get("hud", {}).get("port", 7860))
     start_web_background(port=port)
     print(f"[Jarvis] HUD: {hud_url(port, con_token=False)} (el enlace con token se abre en el navegador)")

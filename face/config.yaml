@@ -3,6 +3,13 @@ wake_word:
   model: hey_jarvis          # ONNX de openWakeWord (pronunciado en inglés)
   threshold: 0.5
   chunk_size: 1280
+  stats_every: 30           # resumen cada N s (0 = apagado)
+  log_from: 0.15             # registra en el journal la puntuación máx de cada intento (calibración)
+audio:
+  # Micrófono del portátil (DMIC del ALC257 vía HDA). NUNCA el de los audífonos BT: abrirlo los pasa a HFP.
+  # Si el nodo no existe, WirePlumber usa la fuente por defecto.
+  mic_target: alsa_input.pci-0000_05_00.6.analog-stereo
+  ducking: 0.2               # los demás sonidos bajan al 20 % de su volumen mientras JARVIS atiende
 stt:
   model: large-v3-turbo      # mejor WER en español en la prueba de JARVIS-WIL (22 %, 0,30 s)
   device: cuda               # si falla, stt.py cae a CPU int8 solo

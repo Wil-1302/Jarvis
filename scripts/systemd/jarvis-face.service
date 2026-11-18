@@ -8,6 +8,8 @@ Wants=openclaw-gateway.service
 Type=simple
 WorkingDirectory=%h/Proyectos/Jarvis/face
 ExecStart=%h/Proyectos/Jarvis/face/run.sh
+# Si face se cae con la música bajada (ducking), aquí se restaura igual que estaba.
+ExecStopPost=-%h/Proyectos/Jarvis/face/.venv/bin/python -m jarvis.ducking restore
 Environment=JARVIS_OPEN_BROWSER=0
 Restart=on-failure
 RestartSec=5

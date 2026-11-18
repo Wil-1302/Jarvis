@@ -89,46 +89,63 @@ def record_until_silence(
     sample_rate: int = 16000,
     silence_threshold: float = 0.012,
     max_seconds: int = 30,
+    start_timeout: float = 6.0,
 ) -> np.ndarray:
-    """Record microphone audio until silence is detected. Returns float32 array.
-    Waits for speech to start before counting silence.
-    Can be interrupted via the abort event (Esc key)."""
-    import sounddevice as sd
+    """Graba del micrófono compartido (jarvis.mic) hasta detectar silencio. Devuelve float32 a 16 kHz.
+    Espera a que empiece la voz antes de contar silencio. Los umbrales se adaptan al ruido de fondo
+    que mide el hub. Se puede interrumpir con el evento de aborto."""
+    import queue as _queue
+    from jarvis.mic import get_hub, BLOCK
 
-    chunk = int(sample_rate * 0.3)  # 300ms chunks
-    recording = []
-    silent_chunks = 0
-    silent_chunks_needed = 7  # ~2.1s of silence to stop
+    hub = get_hub()
+    floor = hub.noise_floor()
+    speech_threshold = max(0.03, floor * 3.0)
+    silence_threshold = max(silence_threshold, floor * 2.2)
+    print(f"[STT] Ruido de fondo {floor:.4f} → voz ≥ {speech_threshold:.4f}, silencio < {silence_threshold:.4f}")
+
+    per_window = 4  # 4 × 80 ms = 320 ms por ventana
+    windows_needed = 6  # ~1,9 s de silencio para cortar
+    recording: list[np.ndarray] = []
+    window: list[np.ndarray] = []
+    silent = 0
     heard_speech = False
-    speech_threshold = 0.015  # louder than silence — confirms user is talking
-
-    with sd.InputStream(samplerate=sample_rate, channels=1, dtype="float32") as stream:
+    q = hub.subscribe(maxsize=int(max_seconds * sample_rate / BLOCK) + 8)
+    try:
         while True:
-            # Check abort every chunk (~300ms)
             if _abort_event and _abort_event.is_set():
                 print("[STT] Recording aborted.")
                 break
-
-            data, _ = stream.read(chunk)
-            flat = data.flatten()
-            recording.append(flat)
+            try:
+                block = q.get(timeout=1.0).astype(np.float32) / 32768
+            except _queue.Empty:
+                continue
+            recording.append(block)
+            window.append(block)
+            if len(window) < per_window:
+                continue
+            flat = np.concatenate(window)
+            window = []
             rms = float(np.sqrt(np.mean(flat ** 2)))
-
             if rms >= speech_threshold:
                 if not heard_speech:
                     print(f"[STT] Speech detected (rms={rms:.4f})")
                 heard_speech = True
-                silent_chunks = 0
+                silent = 0
             elif heard_speech and rms < silence_threshold:
-                silent_chunks += 1
-
-            if heard_speech and silent_chunks >= silent_chunks_needed:
+                silent += 1
+            seconds = len(recording) * BLOCK / sample_rate
+            if heard_speech and silent >= windows_needed:
                 print("[STT] Silence detected, stopping recording.")
                 break
-            if len(recording) * chunk >= max_seconds * sample_rate:
+            if not heard_speech and seconds >= start_timeout:
+                print("[STT] No se oyó voz.")
+                break
+            if seconds >= max_seconds:
                 print(f"[STT] Max recording time reached ({max_seconds}s)")
                 break
+    finally:
+        hub.unsubscribe(q)
 
-    if not recording:
-        return np.zeros(chunk, dtype=np.float32)
+    if not recording or not heard_speech:
+        return np.zeros(BLOCK, dtype=np.float32)
     return np.concatenate(recording)
