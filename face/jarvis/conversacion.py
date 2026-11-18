@@ -227,7 +227,11 @@ class Conversacion:
 
         def chunks():
             while True:
-                d = deltas.get()
+                try:
+                    d = deltas.get(timeout=0.7)
+                except queue.Empty:
+                    yield tts.FLUSH  # pausa del cerebro (herramienta): decir ya lo recibido
+                    continue
                 if d is None or self.abort_event.is_set():
                     return
                 yield d

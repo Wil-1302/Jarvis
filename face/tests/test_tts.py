@@ -78,3 +78,8 @@ def test_azure_ssml_escapa_y_aplica_prosodia(monkeypatch):
     a = T.AzureEngine({"tts": {"edge": {"voice": "es-MX-JorgeNeural", "rate": "-8%", "pitch": "-2Hz"}}})
     x = a.ssml("Café & <té>")
     assert 'name="es-MX-JorgeNeural"' in x and 'rate="-8%"' in x and "Café &amp; &lt;té&gt;" in x
+
+
+def test_pausa_del_cerebro_dice_lo_recibido(eng):
+    T.speak_stream(iter(["Voy a buscarlo", T.FLUSH, T.FLUSH, " ahora mismo. Listo."]))
+    assert eng.dichas == ["Voy a buscarlo", "ahora mismo.", "Listo."]

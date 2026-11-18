@@ -279,6 +279,7 @@ player = Player()
 # ─── API ───
 
 _SENT_END = re.compile(r"(.+?[.!?…:;])(\s+|$)", re.S)
+FLUSH = object()  # marcador: el cerebro hizo una pausa (p. ej. usa una herramienta) → decir lo que haya
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -339,6 +340,12 @@ def speak_stream(chunks, on_first_audio=None) -> str:
             for c in chunks:
                 if player.interrupt.is_set():
                     break
+                if c is FLUSH:
+                    if len(buf.strip()) >= 2:
+                        sentences.put(buf.strip())
+                        buf = ""
+                        primero[0] = False
+                    continue
                 full.append(c)
                 buf += c
                 while True:

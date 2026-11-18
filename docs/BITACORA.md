@@ -126,3 +126,11 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
 - Failover (D-014): respaldo gpt-5.6-terra; agente jarvis estricto; face anuncia el cambio. Durante el sondeo de
   modelos el proveedor openai entró en cooldown (model_not_found repetido) → esperar y probar de uno en uno.
 - doctor.sh: todo en verde (incluidos refuerzos y respaldo).
+- Conversación real de 18 turnos (abierta con Super+J por Claude para comprobar los hilos; se respondió de viva voz):
+  voz típica a los 3,8–4,9 s del fin de frase (VAD 0,67 + STT 0,43 + cerebro 1,1 + Edge ~1,5). Dos turnos tardaron
+  24 y 34 s: el cerebro mandaba una frase sin punto y luego usaba una herramienta → el divisor esperaba el punto.
+  Arreglado: tras 0,7 s sin texto del cerebro se dice lo recibido (`tts.FLUSH`).
+- Riesgo visto: en modo conversación se atiende a CUALQUIER voz de la sala (no solo la del señor). Propuesta:
+  verificación de hablante o exigir el nombre si hay más voces (⏸ decisión).
+- Activación por nombre aún sin confirmar con la voz del señor: en las ventanas de prueba nadie dijo «Jarvis»
+  (parecido máximo 0,44).
