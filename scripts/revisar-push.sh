@@ -20,14 +20,15 @@ rm -f /tmp/.jarvis-push-$$
 for f in $FILES; do [[ -f $f ]] && (( $(stat -c %s "$f") > 5000000 )) && mal "archivo de más de 5 MB: $f"; done
 # 3) Secretos por patrón en lo añadido
 DIFF="$(git log -p --format= "$RANGO" | grep '^+' )"
-echo "$DIFF" | grep -qE '(OPENCLAW_GATEWAY_TOKEN|JARVIS_HUD_TOKEN|SPOTIFY_CLIENT_SECRET|AZURE_SPEECH_KEY|API_KEY|_TOKEN)=[A-Za-z0-9_\-]{12,}' && mal "asignación de un secreto con valor"
-echo "$DIFF" | grep -qE '(sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[0-9A-Z]{16}|xox[bap]-[A-Za-z0-9-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY)' && mal "algo con forma de clave (sk-, ghp_, AKIA, clave privada…)"
+grep -qE '(OPENCLAW_GATEWAY_TOKEN|JARVIS_HUD_TOKEN|SPOTIFY_CLIENT_SECRET|AZURE_SPEECH_KEY|API_KEY|_TOKEN)=[A-Za-z0-9_\-]{12,}' <<<"$DIFF" && mal "asignación de un secreto con valor"
+grep -qE '(sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[0-9A-Z]{16}|xox[bap]-[A-Za-z0-9-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY)' <<<"$DIFF" && mal "algo con forma de clave (sk-, ghp_, AKIA, clave privada…)"
 # 4) Valores reales (sin mostrarlos)
 VALS=()
 [[ -f ~/.config/jarvis/secrets.env ]] && while IFS='=' read -r k v; do [[ ${#v} -ge 12 ]] && VALS+=("$v"); done < <(grep -E '^[A-Z0-9_]+=' ~/.config/jarvis/secrets.env)
 T="$(jq -r '.gateway.auth.token // empty' ~/.openclaw/openclaw.json 2>/dev/null)"; [[ ${#T} -ge 12 ]] && VALS+=("$T")
-for v in "${VALS[@]}"; do git log -p --format= "$RANGO" | grep -qF -- "$v" && mal "un valor REAL de secrets.env o del token del gateway aparece en un commit (${#v} caracteres)"; done
+for v in "${VALS[@]}"; do grep -qF -- "$v" <<<"$DIFF" && mal "un valor REAL de secrets.env o del token del gateway aparece en un commit (${#v} caracteres)"; done
 # 5) Transcripciones de voz en texto
-echo "$DIFF" | grep -qE '^\+.*\[(Usted|Jarvis)\] ' && mal "líneas de transcripción ([Usted]/[Jarvis]) en lo añadido"
+# (línea de log: empieza por la etiqueta, o por "run.sh[PID]: "; el código con print("[Usted] …") no cuenta)
+grep -qE '^\+[[:space:]]*([A-Za-z]{3} [0-9]{1,2} [0-9:.]+ [a-z0-9-]+ run\.sh\[[0-9]+\]: )?\[(Usted|Jarvis)\] ' <<<"$DIFF" && mal "líneas de transcripción ([Usted]/[Jarvis]) en lo añadido"
 ((MAL)) && { echo "No se debe hacer push. Corrija y vuelva a revisar."; exit 1; }
 echo "  ✔ nada sensible en $N commit(s)."
