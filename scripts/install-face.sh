@@ -13,6 +13,8 @@ echo ">> modelo de verificación de hablante (NeMo TitaNet small, 40 MB) en ~/.l
 VM=~/.local/share/jarvis/voz-modelos; install -d "$VM"; M=$VM/nemo_en_titanet_small.onnx
 [[ -f $M ]] || curl -fsSL -o "$M" "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_small.onnx"
 echo "ad4a1802485d8b34c722d2a9d04249662f2ece5d28a7a039063ca22f515a789e  $M" | sha256sum -c --quiet || { echo "hash del modelo incorrecto" >&2; rm -f "$M"; exit 1; }
+echo ">> cancelación de eco (WebRTC AEC3 del sistema, la de PipeWire) → native/libjarvis_aec.so (D-021)"
+g++ -O2 -shared -fPIC -std=c++17 native/aec.cc $(pkg-config --cflags --libs webrtc-audio-processing-1) -o native/libjarvis_aec.so
 echo ">> hook pre-push (scripts/revisar-push.sh)"; printf '#!/usr/bin/env bash\nexec "$(git rev-parse --show-toplevel)/scripts/revisar-push.sh"\n' > ../.git/hooks/pre-push; chmod +x ../.git/hooks/pre-push
 echo ">> secretos fuera del repo (refuerzo a)"; bash ../scripts/migrar-secretos.sh
 echo ">> unidad systemd de usuario"; install -Dm644 ../scripts/systemd/jarvis-face.service ~/.config/systemd/user/jarvis-face.service
