@@ -37,6 +37,7 @@ chk "venv de face" test -x "$REPO/face/.venv/bin/python"
 chk "jarvis-face activo" systemctl --user is-active jarvis-face.service
 chk "HUD solo en loopback" bash -c "ss -tlnH 'sport = :7860' | awk '{print \$4}' | grep -q '^127.0.0.1:' && ! ss -tlnH 'sport = :7860' | awk '{print \$4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):'"
 chk "HUD sin token → 401" bash -c "[[ \$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:7860/api/providers) == 401 ]]"
+chk "ydotool activo (música por la app de escritorio, D-018)" systemctl --user is-active ydotool.service
 echo "Sistema"
 chk "sin Ollama/CUDA (D-008)" bash -c "! pacman -Q ollama >/dev/null 2>&1 && ! pacman -Q cuda >/dev/null 2>&1"
 chk "ufw activo" systemctl is-active ufw.service

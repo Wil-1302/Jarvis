@@ -7,8 +7,7 @@ import jarvis.acciones as A
 @pytest.fixture
 def sp(monkeypatch):
     llam = {"buscar": [], "control": [], "vol": [], "sistema": []}
-    monkeypatch.setattr(A.spotify, "buscar", lambda cancion=None, artista=None: (llam["buscar"].append((cancion, artista)) or ("spotify:track:x", "Tú y yo", "Artista X")))
-    monkeypatch.setattr(A.spotify, "reproducir", lambda uri: True)
+    monkeypatch.setattr(A.spotify, "poner", lambda cancion=None, artista=None: (llam["buscar"].append((cancion, artista)) or ("Tú y yo", "Artista X")))
     monkeypatch.setattr(A.spotify, "control", lambda a: llam["control"].append(a) or True)
     monkeypatch.setattr(A.spotify, "abierto", lambda: True)
     monkeypatch.setattr(A.spotify, "volumen", lambda: 0.5)

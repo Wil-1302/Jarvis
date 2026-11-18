@@ -101,20 +101,16 @@ def intentar(texto: str) -> tuple[str, bool] | None:
     c = None if a else _CANCION_DE.match(resto)
     try:
         if a:
-            r = spotify.buscar(artista=a.group("a"))
+            r = spotify.poner(artista=a.group("a"))
         elif c:
-            r = spotify.buscar(cancion=c.group("c"), artista=c.group("a"))
+            r = spotify.poner(cancion=c.group("c"), artista=c.group("a"))
         else:
-            r = spotify.buscar(cancion=resto)
-    except spotify.SinCredenciales:
-        return "Para buscar canciones necesito las credenciales de Spotify; de momento solo puedo pausar, reanudar o pasar de tema.", False
+            r = spotify.poner(cancion=resto)
     except Exception as e:
-        print(f"[Música] Error de la API de Spotify: {e}")
-        return "Spotify no responde ahora mismo.", False
+        print(f"[Música] Error al poner música: {e}")
+        return "No consigo poner música en Spotify ahora mismo.", False
     if not r:
-        return f"No encuentro «{resto}» en Spotify.", False
-    uri, titulo, artista = r
-    if not spotify.reproducir(uri):
-        return "No consigo abrir Spotify.", False
+        return f"No consigo poner «{resto}» en Spotify.", False
+    titulo, artista = r
     print(f"[Música] {titulo} — {artista}")
-    return f"Reproduciendo «{titulo}», de {artista}.", True
+    return (f"Reproduciendo «{titulo}», de {artista}." if artista else f"Reproduciendo «{titulo}»."), True

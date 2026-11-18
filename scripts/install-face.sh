@@ -17,6 +17,7 @@ echo ">> hook pre-push (scripts/revisar-push.sh)"; printf '#!/usr/bin/env bash\n
 echo ">> secretos fuera del repo (refuerzo a)"; bash ../scripts/migrar-secretos.sh
 echo ">> unidad systemd de usuario"; install -Dm644 ../scripts/systemd/jarvis-face.service ~/.config/systemd/user/jarvis-face.service
 systemctl --user daemon-reload
+echo ">> ydotool (teclas para la búsqueda de Spotify, D-018)"; systemctl --user enable --now ydotool.service
 
 echo ">> WirePlumber: audífonos Bluetooth siempre en A2DP (sin autoswitch a HSP/HFP)"
 install -Dm644 ../scripts/wireplumber/51-jarvis-bluetooth.conf ~/.config/wireplumber/wireplumber.conf.d/51-jarvis-bluetooth.conf
