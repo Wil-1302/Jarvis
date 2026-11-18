@@ -68,3 +68,6 @@ desktop.ini
 voz.npz
 medidas-voz.json
 secrets.env
+
+# --- Nativo (se compila en install-face.sh) ---
+face/native/*.so

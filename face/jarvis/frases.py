@@ -38,11 +38,23 @@ _PATRONES = [
     ("saludo", r"^(hola|buenas|buenos dias|buenas tardes|buenas noches|que tal|hola que tal|como estas|hola como estas|que hay)$"),
     ("gracias", r"^(gracias|muchas gracias|genial gracias|perfecto gracias)$"),
 ]
-_DESPEDIDA = re.compile(r"(gracias,? )?(eso es todo|ya esta|nada mas|es todo|cierra la conversacion|cierra conversacion|"
-                        r"termina(mos)?|hemos terminado|puedes descansar|hasta luego|hasta manana|buenas noches|adios|chao|"
-                        r"bye|listo,? gracias|ya termine|nada,? gracias|nada mas,? gracias|eso es todo,? gracias|"
-                        r"ya esta,? gracias|callate|silencio|ya no te quiero escuchar|no te quiero escuchar|dejalo ahi|"
-                        r"para ya|ya basta|basta)$")
+# Cierre de la conversación (D-022): la frase cierra si, quitando muletillas, SOLO quedan expresiones de cierre.
+_CIERRES = sorted([
+    "adios", "chao", "chau", "bye", "hasta luego", "hasta manana", "hasta pronto", "hasta la proxima", "nos vemos",
+    "buenas noches", "eso es todo", "eso seria todo", "eso era todo", "es todo", "seria todo", "nada mas", "ya esta",
+    "ya", "gracias", "muchas gracias", "mil gracias", "termina", "terminamos", "terminar", "termina la conversacion",
+    "hemos terminado", "ya termine", "ya terminamos", "cierra", "cierra la conversacion", "cierra conversacion",
+    "cerrar la conversacion", "cerrar conversacion", "fin de la conversacion", "fin", "puedes descansar", "descansa",
+    "callate", "silencio", "basta", "ya basta", "para ya", "dejalo ahi", "no te quiero escuchar",
+    "ya no te quiero escuchar", "puedes irte", "vete a dormir", "a dormir", "duermete", "no necesito nada mas",
+    "no necesito nada", "eso nomas", "eso no mas", "nada", "ya no", "ya no gracias", "no gracias",
+], key=len, reverse=True)
+_MULETILLAS = sorted([
+    "ok", "okay", "vale", "bueno", "bien", "muy bien", "perfecto", "listo", "genial", "de acuerdo", "entonces",
+    "pues", "por favor", "por ahora", "por hoy", "por el momento", "jarvis", "senor", "y", "eso", "ahora", "entendido",
+], key=len, reverse=True)
+_RE_CIERRE = re.compile(r"\b(" + "|".join(map(re.escape, _CIERRES)) + r")\b")
+_RE_MULETILLA = re.compile(r"\b(" + "|".join(map(re.escape, _MULETILLAS)) + r")\b")
 
 
 def _norm(t: str) -> str:
@@ -63,8 +75,13 @@ def clasificar(resto: str) -> str | None:
 
 
 def es_despedida(texto: str) -> bool:
+    """"Adiós", "eso es todo", "ya", "gracias", "termina", "cierra la conversación, por favor", "ok, gracias,
+    Jarvis"… cierran. "Gracias por la receta, ¿y el postre?" no (queda contenido)."""
     n = _norm(texto)
-    return bool(n) and len(n.split()) <= 7 and bool(_DESPEDIDA.search(n))
+    if not n or len(n.split()) > 9:
+        return False
+    resto, k = _RE_CIERRE.subn(" ", n)
+    return k > 0 and not _RE_MULETILLA.sub(" ", resto).strip()
 
 
 def _saludo_hora() -> str:
@@ -110,6 +127,9 @@ class Frases:
                 return self.audio[texto]
         f = self._file(texto)
         a = np.load(f) if f.exists() else None
+        if a is not None:
+            from jarvis.tts import recortar_silencios
+            a = recortar_silencios(a, self.engine.rate)   # caché anterior a D-024: con 0,23 s de silencio delante
         if a is None:
             a = self.engine.synth(texto)
             if getattr(self.engine, "last_was_backup", False):
@@ -134,3 +154,24 @@ class Frases:
         texto = random.choice(opciones)
         self.ultima[cat] = texto
         return texto, self._get(texto)
+
+
+# ─── ¿Frase a medias? (D-024: fin de frase adaptativo) ───
+_CONECTORES = set("""y e o u ni pero que de del a al en con para por porque pues como cuando si el la los las lo un
+una unos unas mi mis tu tus su sus este esta estos estas ese esa eso entonces tambien sin sobre hasta desde cual
+cuales quien donde mas muy eh em ehm mmm este osea mientras aunque segun entre hacia tipo""".split())
+
+
+def frase_incompleta(texto: str) -> bool:
+    """True si lo transcrito parece cortado: termina en conector ("y", "pero", "de"…), en coma o en puntos
+    suspensivos. Solo el nombre ("Jarvis.") NO cuenta como incompleta: se le contesta en el acto."""
+    t = texto.strip()
+    if not t:
+        return False
+    n = _norm(t)
+    if not n or n in ("jarvis", "oye jarvis", "hola jarvis"):
+        return False
+    if t.endswith(("...", "…", ",", "-", "—")):
+        return True
+    return n.split()[-1] in _CONECTORES
+

@@ -3,8 +3,9 @@
 Estados:
 - ESPERA: cada frase (VAD) se transcribe; solo se atiende si empieza llamando a Jarvis (jarvis.nombre).
   Lo que se oye sin nombre NO se registra ni se envía a ningún sitio.
-- CONVERSACIÓN: tras atender, sigue escuchando sin nombre hasta una despedida ("gracias, eso es todo",
-  "ya está", "cierra la conversación") o `silencio_fin` segundos sin hablar. Los demás sonidos siguen
+- CONVERSACIÓN: tras atender, sigue escuchando sin nombre hasta una despedida (frases.es_despedida: "adiós", "eso
+  es todo", "ya", "gracias", "termina", "cierra la conversación"…) o `silencio_fin` segundos sin hablar. Al cerrar
+  vuelve a ESPERA de verdad: `sordera_tras_cierre` s sin escuchar y se vacía la cola (D-022). Los demás sonidos siguen
   bajados (ducking) mientras dura.
 - Mientras JARVIS habla, el micrófono se ignora (semidúplex): no se escucha a sí mismo. Con
   `audio.barge_in: true` (solo si hay cancelación de eco) se puede interrumpir con "para" o con el nombre.
@@ -19,10 +20,11 @@ import threading
 import time
 from pathlib import Path
 
+import numpy as np
 import yaml
 
 from jarvis import ducking, tts
-from jarvis.frases import Frases, clasificar, es_despedida, sonido
+from jarvis.frases import Frases, clasificar, es_despedida, frase_incompleta, sonido
 from jarvis.nombre import detectar
 
 _CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
@@ -39,7 +41,9 @@ class Conversacion:
         c = _cfg()
         conv = c.get("conversacion") or {}
         self.silencio_fin = float(conv.get("silencio_fin", 10))
-        self.fin_frase = float(conv.get("fin_frase", 0.7))
+        self.fin_frase = float(conv.get("fin_frase", 0.45))
+        # Frase a medias ("y…", "pero…", "de…"): se espera su continuación hasta este plazo y se unen (D-024).
+        self.espera_incompleta = float(conv.get("espera_incompleta", 1.5))
         self.barge_in = bool((c.get("audio") or {}).get("barge_in", False))
         self.duck_factor = float((c.get("audio") or {}).get("ducking", 0.2))
         self.debug = bool(conv.get("debug", False))  # traza de VAD (duraciones, nunca el contenido)
@@ -48,13 +52,18 @@ class Conversacion:
         self.estado = ESPERA
         self.ocupado = threading.Event()       # pensando o hablando
         self.deadline = 0.0
+        self.sordo_hasta = 0.0                 # tras despedirse, el micrófono se ignora (D-022)
+        self.sordera = float(conv.get("sordera_tras_cierre", 2.0))
         self.q: queue.Queue = queue.Queue(maxsize=4)
         self._lock = threading.RLock()
         self.frases = Frases(tts.get_engine())
-        # Verificación de hablante (D-015): solo la voz del señor. Sin huella → desactivada (con aviso).
+        # Verificación de hablante (D-015): APAGADA por decisión del señor (D-021: cualquier persona puede hablarle).
+        # El código se conserva por si un día se usa solo para autorizar acciones delicadas: `hablante.activo: true`.
         self.verif = None
         self.exento = False  # la 1.ª frase tras Super+J no se verifica (está frente al teclado)
-        if (c.get("hablante") or {}).get("activo", True):
+        if not (c.get("hablante") or {}).get("activo", False):
+            print("[Voz] Verificación de hablante: apagada (cualquier persona puede hablarle).")
+        else:
             from jarvis import hablante
             try:
                 self.verif = hablante.cargar((c.get("hablante") or {}).get("umbral"))
@@ -82,6 +91,10 @@ class Conversacion:
             self.estado = ESPERA
         if con_sonido:
             tts.play_audio(sonido("fin", tts.get_engine().rate))
+        # Cerrar de verdad: 2 s sin escuchar y fuera lo que estuviera en cola; solo «Jarvis» o Super+J reactivan.
+        self.sordo_hasta = time.time() + self.sordera
+        with self.q.mutex:
+            self.q.queue.clear()
         ducking.unduck()
         tts.player.close()
         print("[Conv] En espera.")
@@ -97,6 +110,7 @@ class Conversacion:
             self.abortar()
             print(f"[Conv] Detenido ({source}).")
             return
+        self.sordo_hasta = 0.0   # Super+J reactiva aunque acabe de despedirse
         self._entrar()
         self.exento = True
         tts.play_audio(sonido("activo", tts.get_engine().rate))
@@ -116,6 +130,9 @@ class Conversacion:
             except queue.Empty:
                 pcm = None
             now = time.time()
+            if now < self.sordo_hasta:
+                seg.reset()
+                continue
             hablando = tts.is_speaking() or now < tts.player.busy_until() + 0.35
             if hablando and not self.barge_in:
                 if not silenciado:
@@ -130,7 +147,11 @@ class Conversacion:
                 continue
             if pcm is not None:
                 seg.max_frames = int((20.0 if self.estado == CONVERSACION else 8.0) * 16000 / 512)
-                for u in seg.feed(pcm, now):
+                antes = seg.in_speech
+                utts = seg.feed(pcm, now)
+                if seg.in_speech and not antes:
+                    tts.precalentar()   # D-024: la voz lista antes de que haga falta
+                for u in utts:
                     if self.debug:
                         print(f"[VAD] frase de {u.seconds:.1f} s ({self.estado}{', ocupado' if self.ocupado.is_set() else ''})")
                     if self.ocupado.is_set() and not self.barge_in:
@@ -146,25 +167,54 @@ class Conversacion:
                 self.deadline = float("inf")
 
     # ── Atención (hilo) ──
-    def run_worker(self) -> None:
-        from jarvis.stt import transcribe_audio
+    def _siguiente(self, transcribe) -> tuple:
+        """(frase, texto, t_stt, hablando) de la próxima frase COMPLETA. Si lo transcrito queda a medias, espera
+        `espera_incompleta` s a que el señor siga y une las partes (no le corta cuando piensa)."""
+        from jarvis.vad import Utterance
+        pend = None   # (frase, texto, t_stt, plazo, partes)
         while True:
-            u = self.q.get()
+            try:
+                u = self.q.get(timeout=None if pend is None else max(0.0, pend[3] - time.time()))
+            except queue.Empty:
+                return pend[0], pend[1], pend[2], False   # nadie siguió: se atiende lo que hubo
+            if u.t_start < self.sordo_hasta:   # empezó antes de cerrar (o durante la sordera): fuera
+                pend = None
+                continue
             hablando = self.ocupado.is_set()
-            # Verificación ANTES de transcribir: una voz ajena no se transcribe ni se envía a ningún sitio.
+            # Verificación ANTES de transcribir (D-015, apagada por defecto): una voz ajena no se transcribe.
             if self.verif is not None and not (self.exento and self.estado == CONVERSACION):
                 ok, p = self.verif.es_el_senor(u.audio)
                 if not ok:
                     print("[Voz] voz no reconocida")
                     continue
-                if self.debug:
-                    print(f"[Voz] reconocida ({p:.2f})")
             self.exento = False
-            t_stt0 = time.time()
-            texto = transcribe_audio(u.audio).strip()
-            t_stt = time.time() - t_stt0
+            t0 = time.time()
+            texto = transcribe(u.audio).strip()
+            t_stt = time.time() - t0
+            if hablando:
+                if texto:
+                    return u, texto, t_stt, True
+                continue
+            if pend is not None:
+                hueco = np.zeros(int(max(0.0, u.t_start - pend[0].t_end) * 16000), np.float32)[:16000]
+                u = Utterance(np.concatenate([pend[0].audio, hueco, u.audio]), pend[0].t_start, u.t_end, u.t_emit)
+                texto, t_stt, partes = (pend[1] + " " + texto).strip(), pend[2] + t_stt, pend[4] + 1
+                pend = None
+            else:
+                partes = 1
             if not texto:
                 continue
+            if frase_incompleta(texto) and partes < 4:
+                if self.debug:
+                    print(f"[VAD] frase a medias: espero {self.espera_incompleta:.1f} s")
+                pend = (u, texto, t_stt, time.time() + self.espera_incompleta, partes)
+                continue
+            return u, texto, t_stt, False
+
+    def run_worker(self) -> None:
+        from jarvis.stt import transcribe_audio
+        while True:
+            u, texto, t_stt, hablando = self._siguiente(transcribe_audio)
             if hablando:  # barge-in (solo con cancelación de eco)
                 if self.es_parada(texto) or detectar(texto)[0]:
                     self.abortar()

@@ -1,9 +1,14 @@
 # JARVIS face — config (sin secretos: el token del gateway y el del HUD viven en ../.env, permisos 600).
 conversacion:
   # Activación: el nombre "Jarvis" (y variantes: yarvis, harvis, charvis…) al inicio de la frase, o Super+J.
-  fin_frase: 0.7             # s de silencio que cierran una frase (VAD Silero)
+  fin_frase: 0.45            # s de silencio que cierran una frase (VAD Silero); si queda a medias, ver espera_incompleta
+  espera_incompleta: 1.5     # frase a medias ("y…", "pero…", "de…"): s que se espera su continuación (D-024)
+  sordera_tras_cierre: 2.0   # s sin escuchar tras despedirse (D-022)
   debug: true               # traza de VAD en el journal (duraciones, nunca el contenido)
   silencio_fin: 10           # s sin hablar que devuelven a espera tras responder
+hablante:
+  # D-015 apagada (D-021): cualquier persona puede hablarle. Código conservado para, quizá, autorizar acciones delicadas.
+  activo: false
 audio:
   # Micrófono del portátil (DMIC del ALC257 vía HDA). NUNCA el de los audífonos BT: abrirlo los pasa a HFP.
   # Si el nodo no existe, WirePlumber usa la fuente por defecto.
