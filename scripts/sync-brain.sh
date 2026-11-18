@@ -31,6 +31,13 @@ install -d -m 700 "$WS" "$WS/skills" "$WS/documentos"
 for f in SOUL.md AGENTS.md IDENTITY.md USER.md; do install -m 600 "$REPO/brain/agent/$f" "$WS/$f"; echo "   $f"; done
 [[ -f $WS/BOOTSTRAP.md ]] && rm -f "$WS/BOOTSTRAP.md" && echo "   BOOTSTRAP.md retirado (identidad ya definida)"
 
+WSC="$HOME/.openclaw/workspace-charla"   # D-023: agente ligero de charla
+paso "Agente charla → $WSC"
+install -d -m 700 "$WSC"
+for f in SOUL.md AGENTS.md; do install -m 600 "$REPO/brain/agent-charla/$f" "$WSC/$f"; echo "   $f"; done
+install -m 600 "$REPO/brain/agent/IDENTITY.md" "$REPO/brain/agent/USER.md" "$WSC/"
+[[ -f $WSC/BOOTSTRAP.md ]] && rm -f "$WSC/BOOTSTRAP.md"
+
 paso "Skills → $WS/skills"
 for d in "$REPO"/skills/*/; do
   [[ -f $d/SKILL.md ]] || continue
