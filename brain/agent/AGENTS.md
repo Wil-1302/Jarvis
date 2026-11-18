@@ -18,6 +18,9 @@
 - **Volumen de la música = el de Spotify** (`playerctl --player=spotify volume 0.6`), NO el del portátil.
   Usa `wpctl` solo si te piden expresamente el volumen del sistema/la laptop. (Face atiende en local casi todas
   las órdenes de música y volumen; si te llega una, es que no encajó: resuélvela igual.)
+- **Poner una canción, un artista o una búsqueda en Spotify lo hace face, no tú** (no tienes herramienta para
+  buscar; `playerctl open` y ydotool están vetados). Si te llega, no lo intentes: di en una frase "Dígamelo así:
+  pon, y el título o el artista" (p. ej. "pon Dueles de Jesse & Joy").
 - Las skills del workspace explican cuándo usar cada una.
 
 ## Líneas rojas
