@@ -54,14 +54,17 @@ historial en `docs/BITACORA.md`.
 - [x] `jarvis-face.service` activo; prueba HUD → face → OpenClaw → Claude → voz por WebSocket
 - [x] Tests: 23 en verde (puente, seguridad del HUD, STT)
 - [x] Audio: un micrófono compartido por PipeWire, BT siempre en A2DP, ducking al 20 %, atajo Super+J, HF sin red (D-009)
-- [ ] ⏸ Prueba de voz con el señor (calibrar el umbral de la wake word con sus tomas)
+- [x] Voz natural: activación por nombre (VAD + Whisper), conversación, respuestas locales, streaming (D-010)
+- [x] Latencia Opus vs Sonnet → Sonnet principal (D-011)
+- [ ] ⏸ Elegir voz (muestras en tmp/voces/) e integrarla
+- [ ] ⏸ Prueba de voz con el señor: conversación de 3 turnos
 
 ## Bloque 7 — Voz y personalidad
 - [ ] STT con idioma configurable (es por defecto); TTS con `lang_code` configurable
-- [ ] ⏸ Muestras de voces Kokoro en `tmp/voces/`
+- [x] Muestras de voces en `tmp/voces/` (Kokoro, Piper, Edge)
 - [ ] SOUL.md completo
-- [ ] HUD: escuchando / pensando / hablando / ejecutando + cerebro activo
-- [ ] Wake word en español: evaluar y documentar
+- [~] HUD: espera / escuchando / pensando / hablando / en conversación (falta ejecutando + cerebro activo)
+- [x] Wake word en español: sustituida por el nombre en la frase (D-010)
 
 ## Bloque 8 — Cambio de cerebro por voz
 - [ ] "usa Claude / usa GPT" → `x-openclaw-model`, persistido y en el HUD (Gemini y local: obsoletos, D-008)

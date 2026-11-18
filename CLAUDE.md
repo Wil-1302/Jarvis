@@ -12,10 +12,10 @@ Un asistente personal estilo J.A.R.V.I.S. para **Arch Linux nativo** (Hyprland, 
 que corren en la misma máquina como **servicios systemd de usuario**:
 
 1. **La cara (`face/`)**: fork de PanPenek/JarvisAi (Python 3.11). Escucha, habla y se ve:
-   wake word "Hey Jarvis" (ONNX de openWakeWord), voz a texto (faster-whisper), texto a voz (Kokoro)
+   activación por el nombre "Jarvis" en la frase (VAD Silero + Whisper) o Super+J, voz a texto (faster-whisper), texto a voz (Kokoro)
    y un HUD web estilo Iron Man en `http://127.0.0.1:7860` (con token). Servicio: `jarvis-face.service`.
 2. **El cerebro (`brain/`)**: OpenClaw (openclaw/openclaw, MIT), instalado desde su paquete oficial.
-   Gestiona modelos (Claude Opus 5.5 vía el login de Claude Code como principal y ChatGPT/Codex OAuth como respaldo; D-008), el agente
+   Gestiona modelos (Claude Sonnet 5.5 vía el login de Claude Code como principal, D-011 y ChatGPT/Codex OAuth como respaldo; D-008), el agente
    `jarvis`, memoria, skills, servidores MCP, aprobaciones de exec y tareas programadas.
    Servicio: el gateway de OpenClaw como servicio de usuario.
 

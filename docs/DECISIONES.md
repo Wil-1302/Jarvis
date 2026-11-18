@@ -174,3 +174,26 @@ Un asistente propio en Python 3.12 (uv), escrito desde cero en unos 6.100 línea
   La voz de JARVIS se llama `JARVIS`/`jarvis-voz` (`PIPEWIRE_PROPS` en run.sh) y no se baja.
   Límite conocido: si un programa se cierra mientras está bajado, WirePlumber puede recordar su 20 % la próxima vez.
 - **Atajo:** Super+J (Hyprland) → `scripts/bin/jarvis-escucha` → socket Unix `$XDG_RUNTIME_DIR/jarvis/face.sock` (600).
+
+## D-010: Voz natural: activación por nombre (VAD + Whisper), modo conversación y semidúplex (2026-11-17)
+- **Fuera openWakeWord** ("Hey Jarvis" no reconocía al señor; máx 0,58 con su voz). Ahora: VAD Silero en streaming
+  (el ONNX que ya trae faster-whisper) → cada frase → el **mismo** Whisper large-v3-turbo de las órdenes →
+  `jarvis/nombre.py` busca "Jarvis" (y yarvis, harvis, charvis, carbis…) al **inicio** de la frase, o al final de una
+  frase corta (≤ 5 palabras). Una sola pasada da nombre y orden.
+- **Coste medido:** VAD 0,25 % de un núcleo; Whisper ~0,4 s de GPU por frase y solo cuando hay voz; +0 VRAM.
+  Aciertos con 36 frases sintéticas en sala real: turbo 34/36, 0 falsos positivos (small CPU igual pero 1 s; base peor).
+  No compensa entrenar un modelo de openWakeWord.
+- **Privacidad:** lo que se oye sin nombre no se registra ni se envía (en el journal solo la duración con `debug`).
+- **Respuestas:** si solo se le llama, respuesta local pregenerada (`jarvis/frases.py`, sin repetir la última; a veces
+  solo un sonido). Si trae orden, va directa al cerebro, en streaming y hablando por oraciones.
+- **Conversación:** tras responder sigue escuchando sin nombre hasta una despedida o 10 s de silencio.
+- **Eco:** semidúplex (el micrófono se ignora mientras habla + 0,35 s). Evaluado el AEC WebRTC de PipeWire como
+  instancia aparte: con los altavoces del portátil el eco apenas llega (la VAD no lo detecta) y la salida del AEC
+  provocó alucinaciones de Whisper → descartado; `audio.barge_in` queda en false.
+- **Límite:** con un vídeo hablando por los ALTAVOCES no hay 0,7 s de silencio y las frases se pegan (segmentos de 8 s
+  en espera); con audífonos no ocurre. Super+J sigue como respaldo.
+
+## D-011: Sonnet 5.5 como cerebro principal (2026-11-17)
+- Medido por el endpoint con streaming (6 peticiones por modelo): Sonnet 1ª oración 1,54 s / total 1,96 s; Opus 3,70 s /
+  3,97 s. Con el plan Pro y la fluidez de la voz como prioridad, el señor pidió Sonnet si era claramente más rápido.
+- `primary: anthropic/claude-sonnet-5-5`, fallback GPT. Opus sigue disponible ("cerebro opus" en face).

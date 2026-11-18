@@ -101,3 +101,17 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
   nombra el stream con `PIPEWIRE_PROPS` y se devolvió al 100 %.
 - Pruebas: "Hey Jarvis" sintético por los altavoces → micrófono: 0,995 (la cadena funciona). Tomas del señor: máx 0,056
   (sin confirmar que hablara en la ventana; ruido de la sala variable, 0,008–0,066 RMS). Falta calibrar el umbral con él.
+
+## 2026-11-17 · Bloque 7b — Voz natural (prioridad del señor)
+- Journal: "hola, qué tal" no falló: el diseño era de un solo turno. 1,5 s de "¿Sí, señor?" antes de escuchar; cerebro
+  7,6 s (Opus). El micrófono estaba **silenciado** (ceros): face ahora avisa con notificación tras 4 s de ceros.
+- Bug de origen: `python -m jarvis.main` + `from jarvis.main import …` en web.py → dos copias del módulo; el HUD no
+  recibía eventos de voz. Corregido. El HUD comparaba textos en inglés: ahora hay mensaje `state` e insignia
+  "EN CONVERSACIÓN".
+- Hecho: vad.py, nombre.py, frases.py, conversacion.py, tts.py (motor intercambiable, stream persistente, voz por
+  oraciones con el 1.er trozo cortado en la primera coma), brain.py en streaming (SSE). Sin openWakeWord ni PyAudio.
+- Arnés con audio inyectado (cerebro y voz reales), 3 turnos: frase sin nombre ignorada; "Jarvis, ¿estás despierto?"
+  → local en 1,13 s desde que calla (fin de frase 0,67 + STT 0,41); "¿qué hora es?" y "dame una idea para cenar" sin
+  nombre; "Jarvis, gracias, eso es todo" → despedida y espera. Con orden: voz a los 3,3 s del fin de frase.
+- Sonnet principal (D-011). AEC evaluado y descartado (D-010). Muestras de voz en tmp/voces/ (⏸ elección).
+- Por el aire (altavoz → micrófono del portátil) la señal llega muy degradada: no sirve para autopruebas.
