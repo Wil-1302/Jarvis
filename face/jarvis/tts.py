@@ -90,33 +90,120 @@ class PiperEngine:
 
 
 class EdgeEngine:
-    """Edge TTS (servicio NO oficial de Microsoft: el texto sale del equipo). D-012."""
+    """Edge TTS (servicio NO oficial de Microsoft: el texto sale del equipo). D-012.
+
+    Conexión WebSocket PERSISTENTE (D-024): edge_tts abre una por frase (~0,7 s de TLS + arranque); aquí se mantiene
+    abierta y se reutiliza para cada frase (1.er audio 0,25–0,6 s frente a 0,95–1,3 s). `precalentar()` la abre de
+    antemano (face lo llama al detectar que el señor empieza a hablar). Si el servidor la cierra, se reabre y se
+    reintenta una vez."""
     rate = 24000
+    FORMATO = "audio-24khz-48kbitrate-mono-mp3"
 
     def __init__(self, cfg: dict):
+        import asyncio
+        import threading as _th
         e = cfg["tts"].get("edge") or {}
         self.voice = e.get("voice", "es-MX-JorgeNeural")
         self.rate_s, self.pitch = e.get("rate", "-8%"), e.get("pitch", "-2Hz")
         self.timeout = float(e.get("timeout", 4.0))
         self.name = f"edge-{self.voice}{self.rate_s}{self.pitch}".replace("%", "").replace("+", "p")
+        self._loop = asyncio.new_event_loop()
+        _th.Thread(target=self._loop.run_forever, name="edge-tts", daemon=True).start()
+        self._ws = self._session = None
+        self._abierta_en = self._uso = 0.0
+        self._lock = _th.Lock()
+
+    def _run(self, coro, timeout):
+        import asyncio
+        return asyncio.run_coroutine_threadsafe(coro, self._loop).result(timeout)
+
+    async def _conectar(self):
+        import aiohttp
+        from edge_tts.communicate import (DRM, SEC_MS_GEC_VERSION, WSS_HEADERS, WSS_URL, _SSL_CTX, connect_id,
+                                          date_to_string)
+        await self._cerrar()
+        self._session = aiohttp.ClientSession()
+        self._ws = await self._session.ws_connect(
+            f"{WSS_URL}&ConnectionId={connect_id()}&Sec-MS-GEC={DRM.generate_sec_ms_gec()}"
+            f"&Sec-MS-GEC-Version={SEC_MS_GEC_VERSION}",
+            compress=15, headers=DRM.headers_with_muid(WSS_HEADERS), ssl=_SSL_CTX)
+        await self._ws.send_str(
+            f"X-Timestamp:{date_to_string()}\r\nContent-Type:application/json; charset=utf-8\r\n"
+            "Path:speech.config\r\n\r\n"
+            '{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false",'
+            f'"wordBoundaryEnabled":"false"}},"outputFormat":"{self.FORMATO}"}}}}}}}}\r\n')
+        self._abierta_en = self._uso = time.time()
+
+    async def _cerrar(self):
+        try:
+            if self._ws is not None:
+                await self._ws.close()
+            if self._session is not None:
+                await self._session.close()
+        except Exception:
+            pass
+        self._ws = self._session = None
+
+    def _viva(self) -> bool:
+        # El servidor corta las conexiones inactivas (~30–45 s, medido): pasados 25 s se reabre por precaución.
+        return self._ws is not None and not self._ws.closed and time.time() - self._uso < 25
+
+    def precalentar(self) -> None:
+        """Abre la conexión si no hay una viva (no bloquea a quien llama)."""
+        import asyncio
+        if not self._viva() and not self._lock.locked():
+            asyncio.run_coroutine_threadsafe(self._precalentar(), self._loop)
+
+    async def _precalentar(self):
+        if not self._viva():
+            try:
+                await self._conectar()
+            except Exception as e:
+                print(f"[Voz] Edge: no se pudo precalentar ({type(e).__name__}).")
+
+    async def _sintetizar(self, text: str) -> bytes:
+        import aiohttp
+        from edge_tts.communicate import connect_id, date_to_string, mkssml, ssml_headers_plus_data
+        from edge_tts.data_classes import TTSConfig
+        if not self._viva():
+            await self._conectar()
+        cfg = TTSConfig(self.voice, self.rate_s, "+0%", self.pitch, "SentenceBoundary")
+        await self._ws.send_str(ssml_headers_plus_data(connect_id(), date_to_string(), mkssml(cfg, text)))
+        buf = b""
+        async for m in self._ws:
+            if m.type == aiohttp.WSMsgType.BINARY:
+                hl = int.from_bytes(m.data[:2], "big")
+                buf += m.data[hl + 2:]
+            elif m.type == aiohttp.WSMsgType.TEXT:
+                if "Path:turn.end" in m.data:
+                    self._uso = time.time()
+                    return buf
+            else:
+                break
+        raise ConnectionError("Edge cerró la conexión")
 
     def synth(self, text: str) -> np.ndarray:
-        import asyncio
-        import edge_tts
-
-        async def run() -> bytes:
-            buf = b""
-            com = edge_tts.Communicate(text, self.voice, rate=self.rate_s, pitch=self.pitch)
-            async for c in com.stream():
-                if c["type"] == "audio":
-                    buf += c["data"]
-            return buf
-
-        data = asyncio.run(asyncio.wait_for(run(), self.timeout))
+        with self._lock:
+            try:
+                data = self._run(self._sintetizar(text), self.timeout)
+            except Exception:
+                self._run(self._cerrar(), 2)
+                data = self._run(self._sintetizar(text), self.timeout)   # un reintento con conexión nueva
         if not data:
             raise RuntimeError("Edge no devolvió audio")
         a, sr = _decode_mp3(data)
-        return _to_rate(a, sr, self.rate)
+        return recortar_silencios(_to_rate(a, sr, self.rate), self.rate)
+
+
+def recortar_silencios(a: np.ndarray, rate: int, inicio: float = 0.03, final: float = 0.25,
+                       umbral: float = 0.01) -> np.ndarray:
+    """Edge pone ~0,23 s de silencio delante y ~0,9 s detrás de cada frase: se dejan 30 ms y 250 ms (D-024)."""
+    voz = np.flatnonzero(np.abs(a) > umbral)
+    if len(voz) == 0:
+        return a
+    i = max(0, voz[0] - int(inicio * rate))
+    j = min(len(a), voz[-1] + int(final * rate))
+    return a[i:j]
 
 
 class AzureEngine:
@@ -167,6 +254,10 @@ class FallbackEngine:
         except Exception as e:
             print(f"[Voz] El motor principal no arrancó ({e}); uso {backup.name}.")
             self.primary, self.name = None, backup.name
+
+    def precalentar(self) -> None:
+        if self.primary is not None and hasattr(self.primary, "precalentar"):
+            self.primary.precalentar()
 
     def synth(self, text: str) -> np.ndarray:
         if self.primary is not None and time.time() >= self._down_until:
@@ -378,6 +469,16 @@ def _clean(text: str) -> str:
     text = re.sub(r"(?<!\w)[*_]{1,3}|[*_]{1,3}(?!\w)|[`#>~]+", "", text)
     text = re.sub(r"\s+([,.;:!?])", r"\1", text)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def precalentar() -> None:
+    """Abre de antemano la conexión del motor de voz (si la tiene). Barato si ya está abierta."""
+    try:
+        e = get_engine()
+        if hasattr(e, "precalentar"):
+            e.precalentar()
+    except Exception:
+        pass
 
 
 def synth(text: str) -> np.ndarray:
