@@ -40,8 +40,8 @@ historial en `docs/BITACORA.md`.
 - [x] Primary `anthropic/claude-opus-5-5` (Fable pide créditos extra en Pro); fallback `openai/gpt-6-astra`
 - [x] chatCompletions; `/v1/models` y "hola" con curl (≈3 s en caliente); 401 sin token
 - [x] Capa 1 + 2 + refuerzos a-e aplicados y probados; `security audit` 0 críticos
-- [ ] ⏸ Login de ChatGPT: `openclaw models auth login --provider openai`
-- [ ] Prueba de failover real (primary agotado → GPT) y aviso por voz en face
+- [x] Login de ChatGPT (hecho por el señor); respaldo `gpt-5.6-terra`
+- [x] Prueba de failover real (primary agotado → GPT) y aviso por voz en face (D-014)
 
 ## Bloque 6 — Cara en Linux + puente
 - [x] Endurecimiento: HUD solo en 127.0.0.1, token en cookie HttpOnly (HTTP + WS), Host/Origin locales,
@@ -56,7 +56,7 @@ historial en `docs/BITACORA.md`.
 - [x] Audio: un micrófono compartido por PipeWire, BT siempre en A2DP, ducking al 20 %, atajo Super+J, HF sin red (D-009)
 - [x] Voz natural: activación por nombre (VAD + Whisper), conversación, respuestas locales, streaming (D-010)
 - [x] Latencia Opus vs Sonnet → Sonnet principal (D-011)
-- [ ] ⏸ Elegir voz (muestras en tmp/voces/) e integrarla
+- [x] Voz: Edge Jorge + respaldo Piper, Azure preparado (D-012)
 - [ ] ⏸ Prueba de voz con el señor: conversación de 3 turnos
 
 ## Bloque 7 — Voz y personalidad
@@ -86,3 +86,5 @@ historial en `docs/BITACORA.md`.
 
 ## Terminado cuando
 - [ ] `doctor.sh` en verde; gateway y face arrancan solos; voz: saludo, música, documento, cambio de cerebro, pendientes; docs al día; ⏸ push
+
+- [x] Refuerzos a–e definitivos y verificados (D-013)

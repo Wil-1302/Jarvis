@@ -12,7 +12,7 @@ Un asistente personal estilo J.A.R.V.I.S. para **Arch Linux nativo** (Hyprland, 
 que corren en la misma máquina como **servicios systemd de usuario**:
 
 1. **La cara (`face/`)**: fork de PanPenek/JarvisAi (Python 3.11). Escucha, habla y se ve:
-   activación por el nombre "Jarvis" en la frase (VAD Silero + Whisper) o Super+J, voz a texto (faster-whisper), texto a voz (Kokoro)
+   activación por el nombre "Jarvis" en la frase (VAD Silero + Whisper) o Super+J, voz a texto (faster-whisper), texto a voz (Edge `es-MX-JorgeNeural` con respaldo Piper local, D-012)
    y un HUD web estilo Iron Man en `http://127.0.0.1:7860` (con token). Servicio: `jarvis-face.service`.
 2. **El cerebro (`brain/`)**: OpenClaw (openclaw/openclaw, MIT), instalado desde su paquete oficial.
    Gestiona modelos (Claude Sonnet 5.5 vía el login de Claude Code como principal, D-011 y ChatGPT/Codex OAuth como respaldo; D-008), el agente
@@ -24,10 +24,10 @@ compatible con OpenAI:
 
 - `POST http://127.0.0.1:18789/v1/chat/completions` (se activa con
   `gateway.http.endpoints.chatCompletions.enabled: true`).
-- Auth: `Authorization: Bearer <token del gateway>` (en `.env` como `OPENCLAW_GATEWAY_TOKEN`).
+- Auth: `Authorization: Bearer <token del gateway>` (en `~/.config/jarvis/secrets.env` como `OPENCLAW_GATEWAY_TOKEN`).
 - El agente va en `model` (`openclaw/jarvis`; verificar con `GET /v1/models`).
-- `x-openclaw-model: <proveedor/modelo>` cambia el modelo por petición (base del "cambio de cerebro"). Es una
-  selección estricta: sin fallback automático.
+- `x-openclaw-model: <proveedor/modelo>` cambia el modelo por petición (base del "cambio de cerebro"). El agente
+  `jarvis` es estricto (`fallbacks: []`): el salto a GPT lo hace face y lo anuncia por voz (D-014).
 - Un `user` estable hace que las peticiones compartan sesión: el historial vive en OpenClaw.
 
 **Reparto de acciones (opción A, ver DECISIONES.md):** OpenClaw ejecuta todas las acciones (shell con
@@ -55,7 +55,7 @@ aprobaciones + MCP). face queda como voz + HUD; sus tools locales se apagan en m
 ~/Proyectos/Jarvis/
 ├── CLAUDE.md
 ├── README.md
-├── .env.example          # nombres de variables, NUNCA secretos reales (.env real: permisos 600)
+├── .env.example          # nombres de variables, NUNCA secretos reales (reales en ~/.config/jarvis/secrets.env)
 ├── face/                 # fork de PanPenek/JarvisAi (git subtree)
 ├── brain/
 │   ├── openclaw/         # submodule de openclaw/openclaw (solo lectura)
@@ -87,7 +87,7 @@ aprobaciones + MCP). face queda como voz + HUD; sus tools locales se apagan en m
 - Nunca `curl | bash` sin descargar, leer y resumir el script al usuario.
 - AUR: resumir el PKGBUILD (qué descarga, de dónde, qué ejecuta) y pedir OK.
 - Nada de skills de ClawHub o de terceros sin revisión y aprobación del usuario.
-- Secretos solo en `.env` (permisos 600) o en la config de OpenClaw. Nunca en el repo, en `config.yaml`,
+- Secretos solo en `~/.config/jarvis/secrets.env` (600, carpeta 700; el gateway no la ve) o en la config de OpenClaw. Nunca en el repo, en `config.yaml`,
   en pantalla ni en mensajes (como mucho: "existe, N caracteres").
 - Gateway, HUD y MCP con HTTP: solo en `127.0.0.1`. El token del gateway equivale a acceso de operador.
 - Pedir confirmación antes de borrar, instalar, enviar o desplegar (en OpenClaw: aprobaciones de exec;

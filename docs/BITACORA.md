@@ -115,3 +115,14 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
   nombre; "Jarvis, gracias, eso es todo" → despedida y espera. Con orden: voz a los 3,3 s del fin de frase.
 - Sonnet principal (D-011). AEC evaluado y descartado (D-010). Muestras de voz en tmp/voces/ (⏸ elección).
 - Por el aire (altavoz → micrófono del portátil) la señal llega muy degradada: no sirve para autopruebas.
+
+## 2026-11-17 · Voz Jorge, refuerzos a–e y failover a GPT
+- Voz: Edge `es-MX-JorgeNeural` (-8 %, -2 Hz) con respaldo Piper `es_MX-claude-high` (probado con un fallo simulado:
+  0,57 s y registrado), Azure preparado (D-012). 30 frases regeneradas con Jorge (60 s).
+- Prueba de 3 turnos: en 5 min no hubo activación; la sala tenía conversación (~40 frases sin nombre, ignoradas). No se
+  sabe si el señor llegó a hablar → la traza `debug` ahora da el parecido con «jarvis» (sin contenido). ⏸ repetir.
+- Refuerzos a–e (D-013): secretos a ~/.config/jarvis (repo sin .env), drop-in ampliado, pruebas desde el namespace del
+  gateway y con el agente. `openclaw config patch` falla con el gateway en marcha (EROFS, buscado) → sync-brain lo para.
+- Failover (D-014): respaldo gpt-5.6-terra; agente jarvis estricto; face anuncia el cambio. Durante el sondeo de
+  modelos el proveedor openai entró en cooldown (model_not_found repetido) → esperar y probar de uno en uno.
+- doctor.sh: todo en verde (incluidos refuerzos y respaldo).

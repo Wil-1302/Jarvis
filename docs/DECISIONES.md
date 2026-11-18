@@ -197,3 +197,50 @@ Un asistente propio en Python 3.12 (uv), escrito desde cero en unos 6.100 línea
 - Medido por el endpoint con streaming (6 peticiones por modelo): Sonnet 1ª oración 1,54 s / total 1,96 s; Opus 3,70 s /
   3,97 s. Con el plan Pro y la fluidez de la voz como prioridad, el señor pidió Sonnet si era claramente más rápido.
 - `primary: anthropic/claude-sonnet-5-5`, fallback GPT. Opus sigue disponible ("cerebro opus" en face).
+
+## D-012: Voz es-MX-JorgeNeural (Edge TTS) con respaldo Piper; Azure preparado (2026-11-17)
+- **Elección del señor:** `es-MX-JorgeNeural`, `rate -8%`, `pitch -2Hz` (formal y tranquilo).
+- **⚠ Edge TTS NO es un servicio oficial:** `edge-tts` usa la API interna del "Leer en voz alta" de Microsoft Edge.
+  **El texto de cada respuesta (y de las frases pregeneradas) sale a servidores de Microsoft.** Puede dejar de
+  funcionar o cambiar sin aviso. Latencia medida: ~1,1–1,5 s por oración (casi todo, conexión).
+- **Respaldo automático:** si Edge falla, tarda más de 4 s o no hay internet → Piper local
+  `es_MX-claude-high` (masculina, es-MX: la que mejor casa con Jorge), ~45 ms por oración. Queda en el journal:
+  `[Voz] edge-… falló (…); respaldo piper-… durante 60 s` y `[Voz] … vuelve a responder`. Tras un fallo se usa Piper
+  60 s antes de reintentar Edge (para no pagar el tiempo de espera en cada oración).
+- **Frases pregeneradas** con Jorge en `~/.cache/jarvis/frases/edge-…/`; si al generarlas Edge falla, ese audio no se
+  guarda (nunca se mezclan dos voces en la caché).
+- **Plan B preparado, sin activar:** `tts.engine: azure` = Azure Speech oficial, misma voz y prosodia (SSML), con
+  `AZURE_SPEECH_KEY` y `AZURE_SPEECH_REGION` en `~/.config/jarvis/secrets.env`. Mismo respaldo Piper. Requiere crear
+  un recurso Speech en Azure (de pago por uso; tiene nivel gratuito).
+
+## D-013: Refuerzos a–e definitivos (sustituyen a los de D-008) (2026-11-17)
+Comparación: D-008 llamaba a–e a allowlist, elevated off, fs en el workspace, solo lectura de persistencia y
+NoNewPrivileges; todo eso sigue. La lista del señor añade y reordena:
+- **a) Secretos de face** en `~/.config/jarvis/secrets.env` (archivo 600, carpeta 700), `InaccessiblePaths` para el
+  gateway. El `.env` del repo se migró y se borró (`scripts/migrar-secretos.sh`).
+- **b) Solo lectura** para el gateway: `~/.config/systemd`, `~/.local/share/systemd`, autostart, Hyprland y
+  **Caelestia** (sus atajos ejecutan comandos), fish, bash/zsh/profile, environment.d, PipeWire/WirePlumber,
+  `~/.local/bin` y **todo** `~/Proyectos/Jarvis`.
+- **c) Workspace propio** `~/.openclaw/workspace-jarvis`; dentro, AGENTS/SOUL/IDENTITY/USER.md y `skills/` son de solo
+  lectura (los pone `sync-brain.sh`).
+- **d) El agente no puede relajar sus aprobaciones:** `~/.openclaw` de solo lectura salvo state/agents/tmp/… Las
+  aprobaciones viven en `state/openclaw.sqlite`; el agente no tiene herramienta que la escriba (tool `gateway`
+  denegada, fs en el workspace, exec por allowlist sin sqlite3/openclaw/intérpretes). **Probado:** desde el espacio de
+  montajes del gateway no se puede escribir openclaw.json, AGENTS.md, skills, unidades, Caelestia, fish, ~/.local/bin
+  ni el repo, ni leer los secretos; y el agente se negó a las 4 peticiones de relajarse.
+  Coste: la config se aplica con el gateway parado (sync-brain.sh lo hace) y el gateway ya no puede guardar su copia
+  "last-known-good" (quedan los `.bak` del CLI); los "permitir siempre" de la Control UI no persisten en config.
+- **e) systemctl --user, systemd-run, loginctl, crontab, at** (y busctl, gdbus, intérpretes…): nunca en la allowlist →
+  siempre aprobación; sin aprobador → denegado (probado: "exec denied… askFallback=deny"). `doctor.sh` falla si
+  alguno aparece en la allowlist efectiva; `sync-brain.sh` reimpone la del repo.
+- Todo lo comprueba `scripts/doctor.sh` (sección "Refuerzos").
+
+## D-014: Failover a GPT anunciado por voz (2026-11-17)
+- Con la cuenta ChatGPT del señor, `gpt-6-astra` y `gpt-6-sol` dan "not supported when using Codex with a ChatGPT
+  account"; **`openai/gpt-5.6-terra` funciona** → es el respaldo.
+- El fallback nativo de OpenClaw funciona (probado: Fable sin créditos → gpt-5.6-terra en 11,5 s), pero es silencioso
+  para el endpoint HTTP (no dice qué modelo respondió). Por eso el agente `jarvis` es **estricto**
+  (`agents.entries.jarvis.model.fallbacks: []`) y face hace el salto: si el principal falla por límite/auth antes del
+  primer fragmento, reintenta con GPT y dice "Señor, cambio al cerebro de respaldo". Probado de punta a punta: 7,3 s.
+  `agents.defaults` conserva el fallback nativo para los demás agentes.
+- Un 500/503 del gateway mientras se reinicia → un reintento con el mismo modelo.
