@@ -95,3 +95,15 @@ historial en `docs/BITACORA.md`.
 - [x] Enrutado charla → GPT, trabajo → Claude (D-017)
 - [x] Revisión antes del push (`scripts/revisar-push.sh`, hook pre-push)
 - [x] Journal de usuario con las transcripciones borrado (por el señor, 2026-11-18)
+
+## Bloque 11 — Sesión del 18/11 tarde (el señor en clase; trabajo en silencio, sin micrófono ni altavoces)
+- [~] ⏸ **Sesión de audio APARCADA tal cual** (para el final, con el señor delante): filtro del PC/AEC en vivo
+  (D-021) sin medir con grabaciones reales; interrupción por voz (`barge_in: auto`) sin probar; cierre (D-022) y
+  fin de frase adaptativo/latencia de Edge (D-024) sin verificar por voz; D-021–D-024 aún sin redactar en
+  DECISIONES.md; agente `charla` (D-023) preparado en OpenClaw pero face no lo usa.
+- [x] 1. Spotify: órdenes con relleno/por cláusulas, Spotify cerrado (espera a la ventana), enrutado (D-025)
+  — [ ] ⏸ reiniciar `jarvis-face` (reabre el micrófono: lo hace el señor) y probar por voz
+- [ ] 2. Navegador para Jarvis (perfil propio)
+- [ ] 3. Canva (MCP oficial → navegador → .pptx local)
+- [ ] 4. Imágenes con licencia libre (Openverse + Wikimedia) en recetas, páginas web y presentaciones
+- [ ] 5. Pruebas por texto con capturas + 5 órdenes de demostración

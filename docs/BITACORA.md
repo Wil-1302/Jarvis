@@ -194,3 +194,9 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
   escritorio) y 51 aplicaciones; `scripts/jarvis-vocabulario`. Pendiente medir si ayuda.
 - Borrado: copia archivada de la conversación de 18 turnos (fila + VACUUM), transcripción de la sesión del CLI de
   Claude del 17/11 tachada (443 líneas de log y 50 textos), caché /tmp/openclaw de la sesión de prueba.
+
+## 2026-11-18 (tarde) · Trabajo en silencio: Spotify, navegador, Canva, imágenes
+- Sesión de audio aparcada como estaba (ver PLAN, bloque 11). Salida de audio en silencio durante las pruebas.
+- Spotify (D-025): diagnóstico con el registro de face y bisect; arreglado, 10+ tests de regresión, probado en real
+  (abierto y cerrado). Allowlist de playerctl alineada con AGENTS.md (`--player=` y `volume`). face sigue con el
+  código anterior hasta que el señor lo reinicie.

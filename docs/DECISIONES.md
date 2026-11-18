@@ -307,3 +307,15 @@ NoNewPrivileges; todo eso sigue. La lista del señor añade y reordena:
   sin preguntar; si no hay, pregunta una vez y guárdala allí".
 - Probado: "¿Qué tiempo hace hoy?" sin ciudad → responde con la suya (GPT y Sonnet).
 
+
+## D-025: Órdenes de música por cláusulas y nunca al cerebro ligero (2026-11-18)
+- Causa del fallo «Spotify ya no busca»: no fue un commit (bisect cfdfc7d..fffe176, mismo resultado en todos). Las
+  órdenes reales traían relleno delante («Ahora Spotify reproduce…», «No pidas confirmación, reproduce…») o verbos
+  nuevos («ponte»), el atajo local (anclado a «^pon|reproduce…») no encajaba y la orden iba al cerebro, que no puede
+  buscar (allowlist sin `playerctl open`, ydotool vetado) → «la política bloquea playerctl».
+- `acciones.py`: el verbo se busca por cláusulas; delante solo se admite relleno, salvo que la frase hable de
+  música (spotify, música, canción…). Si tras el verbo no queda nada útil, vale la cláusula siguiente. Peticiones de
+  ánimo («músicas para sufrir», «música triste») = búsqueda libre. «no me pongas…», «ponte las pilas» no son música.
+- Spotify cerrado: se abre y se espera a MPRIS **y a la ventana** + 2,5 s (Ctrl+K antes de eso se pierde).
+- Enrutado: música, Canva, imágenes y recetas cuentan como «trabajo»; la vía ligera nunca las recibe.
+- Probado en real con la salida en silencio y pausando al momento: 3,8–3,9 s con Spotify abierto, 7,7 s cerrado.
