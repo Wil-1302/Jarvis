@@ -19,3 +19,4 @@ pytest-mock>=3.14.0
 edge-tts>=7.3              # voz Jorge (servicio NO oficial de Microsoft, D-012)
 piper-tts>=1.8             # respaldo de voz local
 scipy>=1.11                # remuestreo de la voz
+sherpa-onnx>=2.0           # huella de voz (TitaNet small, CPU) D-015

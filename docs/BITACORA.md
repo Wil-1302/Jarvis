@@ -134,3 +134,17 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
   verificación de hablante o exigir el nombre si hay más voces (⏸ decisión).
 - Activación por nombre aún sin confirmar con la voz del señor: en las ventanas de prueba nadie dijo «Jarvis»
   (parecido máximo 0,44).
+
+## 2026-11-18 · Privacidad, verificación de hablante, música, enrutado
+- Prueba de 3 turnos del señor: activación por nombre OK ("Jarvis, ¿estás despierto?" → local en 1,12 s). "Hasta
+  mañana" no cerraba (añadido). Clima con ciudad: voz a los 12 s. Se colaron frases de terceros en la conversación y la
+  música no volvió a su volumen al cerrar (arreglado, D-016).
+- Borrado a petición del señor (conversación de 18 turnos y frases de terceros): sesión `face:jarvis` de OpenClaw
+  (+ su copia archivada .zst y memorias indexadas), su transcripción del CLI de Claude
+  (~/.claude/projects/-home-wil--openclaw-workspace-jarvis/21d91dcd….jsonl) y VACUUM de las dos bases SQLite;
+  verificado sin rastro. El journal de usuario (root) necesita sudo: ⏸.
+- Regla nueva: no abrir sesiones de escucha sin que el señor esté probando.
+- Verificación de hablante (D-015), música y volumen locales (D-016), enrutado charla/trabajo (D-017).
+- `scripts/revisar-push.sh` + hook pre-push: probado con un secreto real, un .wav y una línea de log (los tres
+  detectados). Arreglado un fallo de pipefail que lo hacía pasar por alto secretos.
+- Un test llevaba la ciudad del señor: cambiada y commit reescrito antes del push (sin rastro en el historial).

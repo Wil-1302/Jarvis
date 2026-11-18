@@ -9,6 +9,11 @@ echo ">> dependencias (requirements-linux.txt)"; uv pip install -q --python .ven
 echo ">> voz Piper de respaldo (es_MX-claude-high, ~63 MB) en ~/.local/share/jarvis/piper"
 PIPER=~/.local/share/jarvis/piper; install -d "$PIPER"
 [[ -f $PIPER/es_MX-claude-high.onnx ]] || .venv/bin/python -m piper.download_voices --download-dir "$PIPER" es_MX-claude-high
+echo ">> modelo de verificación de hablante (NeMo TitaNet small, 40 MB) en ~/.local/share/jarvis/voz-modelos"
+VM=~/.local/share/jarvis/voz-modelos; install -d "$VM"; M=$VM/nemo_en_titanet_small.onnx
+[[ -f $M ]] || curl -fsSL -o "$M" "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_small.onnx"
+echo "ad4a1802485d8b34c722d2a9d04249662f2ece5d28a7a039063ca22f515a789e  $M" | sha256sum -c --quiet || { echo "hash del modelo incorrecto" >&2; rm -f "$M"; exit 1; }
+echo ">> hook pre-push (scripts/revisar-push.sh)"; printf '#!/usr/bin/env bash\nexec "$(git rev-parse --show-toplevel)/scripts/revisar-push.sh"\n' > ../.git/hooks/pre-push; chmod +x ../.git/hooks/pre-push
 echo ">> secretos fuera del repo (refuerzo a)"; bash ../scripts/migrar-secretos.sh
 echo ">> unidad systemd de usuario"; install -Dm644 ../scripts/systemd/jarvis-face.service ~/.config/systemd/user/jarvis-face.service
 systemctl --user daemon-reload

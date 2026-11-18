@@ -244,3 +244,33 @@ NoNewPrivileges; todo eso sigue. La lista del señor añade y reordena:
   primer fragmento, reintenta con GPT y dice "Señor, cambio al cerebro de respaldo". Probado de punta a punta: 7,3 s.
   `agents.defaults` conserva el fallback nativo para los demás agentes.
 - Un 500/503 del gateway mientras se reinicia → un reintento con el mismo modelo.
+
+## D-015: Verificación de hablante: JARVIS solo atiende la voz del señor (2026-11-18)
+- **Motivo:** en modo conversación se atendían frases de otras personas de la sala y llegaban al cerebro.
+- **Modelo:** NeMo TitaNet small (ONNX, 40 MB, sherpa-onnx, CPU, ~20 ms por frase). Comparado con 10 voces
+  sintéticas × 10 frases: TitaNet EER 5 %; WeSpeaker ResNet34 26 %; CAM++ 31 %; TitaNet large igual que small.
+- **Huella:** `~/.config/jarvis/voz.npz` (600, carpeta 700): solo vectores, nunca audio. Ni repo ni red; el gateway
+  no la ve. Se crea con `scripts/jarvis-voz enrolar` (12 frases con cuenta atrás) y se calibra con
+  `scripts/jarvis-voz medir` (normal, ruido, distancia, voz cansada; TV/vídeo, otras voces, 100 frases sintéticas
+  de otras voces incluida la de Jorge). Medidas (solo números) en `~/.config/jarvis/medidas-voz.json`.
+- **Se aplica** a la activación por nombre y al modo conversación, ANTES de transcribir: una voz ajena no se
+  transcribe ni se envía; en el log solo "[Voz] voz no reconocida". La primera frase tras Super+J no se verifica.
+- Sin huella la verificación queda desactivada (aviso en el arranque).
+
+## D-016: Música y volumen en local (excepción de la opción A por latencia) (2026-11-18)
+- `face/jarvis/acciones.py` atiende sin cerebro: reproducir por búsqueda ("pon/reproduce X", "música de ARTISTA" =
+  tema al azar entre sus populares, solo canción = primer resultado), pausa/reanudar/siguiente/anterior y volumen.
+- **Volumen = el de Spotify** salvo "del sistema/la laptop/general". Durante la conversación fija el volumen al que
+  volverá la música (`ducking.set_original`). Tras una orden de música se cierra la conversación.
+- Búsqueda: Spotify Web API con client credentials (`SPOTIFY_CLIENT_ID/SECRET` en `~/.config/jarvis/secrets.env`,
+  ⏸ el señor crea la app); reproducción por MPRIS (`playerctl open spotify:track:…`).
+- Ducking: al cerrar, la música vuelve SIEMPRE a su volumen (Spotify reajusta su volumen al cambiar de canción y la
+  regla anterior de "respetar cambios" la dejaba baja).
+
+## D-017: Charla con GPT, trabajo con Claude (2026-11-18)
+- A petición del señor (ahorrar cuota de Claude): `face/jarvis/enrutador.py` manda la charla a `openai/gpt-5.6-terra`
+  y lo que hace algo (abrir, crear, escribir, código, documentos, archivos, búsquedas, clima, recordatorios…) o las
+  peticiones largas a `anthropic/claude-sonnet-5-5`, con respaldo cruzado.
+- **Coste medido:** GPT 1.ª oración 3,10 s / total 3,91 s; Sonnet 1,43 s / 1,66 s → la charla empieza a hablar ~1,7 s
+  más tarde. GPT a veces responde con listas pese a SOUL.md. Interruptor: `llm.enrutado.activo` en config.yaml.
+- Persona: "señor" solo de vez en cuando (SOUL.md, USER.md y frases locales).
