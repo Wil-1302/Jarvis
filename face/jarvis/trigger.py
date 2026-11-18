@@ -1,7 +1,7 @@
 """Disparador local: socket Unix en $XDG_RUNTIME_DIR/jarvis/face.sock (carpeta 700, sin red).
 
 El atajo global (Super+J en Hyprland) ejecuta `jarvis-escucha`, que escribe "listen" aquí:
-equivale a decir "Hey Jarvis" (si está ocupado, lo detiene). "stop" lo detiene todo.
+abre la conversación sin decir el nombre (si está hablando o pensando, lo detiene). "stop" lo detiene todo.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def _serve() -> None:
     os.chmod(SOCK, 0o600)
     srv.listen(4)
     print(f"[Atajo] Esperando órdenes en {SOCK}")
-    from jarvis.wake import trigger
+    from jarvis.main import trigger
     while True:
         conn, _ = srv.accept()
         with conn:

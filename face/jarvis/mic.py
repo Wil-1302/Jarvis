@@ -60,6 +60,7 @@ class MicHub:
                 self._proc = subprocess.Popen(self._cmd(), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
                 print(f"[Mic] Capturando de {self.target or 'la fuente por defecto'} (PipeWire, 16 kHz mono).")
                 out = self._proc.stdout
+                zeros = 0
                 while True:
                     buf = out.read(_BYTES)
                     if not buf or len(buf) < _BYTES:
@@ -67,6 +68,9 @@ class MicHub:
                     pcm = np.frombuffer(buf, dtype=np.int16)
                     rms = float(np.sqrt(np.mean((pcm.astype(np.float32) / 32768) ** 2)))
                     self._rms_hist.append(rms)
+                    zeros = zeros + 1 if rms == 0.0 else 0
+                    if zeros == 50:  # 4 s de ceros exactos: micrófono silenciado (tecla o panel)
+                        self._aviso_silenciado()
                     with self._lock:
                         subs = list(self._subs)
                     for q in subs:
@@ -88,6 +92,18 @@ class MicHub:
             backoff = 1.0 if time.time() - t0 > 10 else min(backoff * 2, 10.0)
             print(f"[Mic] La captura se cortó; reintento en {backoff:.0f} s.")
             time.sleep(backoff)
+
+    def _aviso_silenciado(self) -> None:
+        msg = "El micrófono está silenciado: JARVIS no le oye."
+        try:
+            if self.target:
+                r = subprocess.run(["pactl", "get-source-mute", self.target], capture_output=True, text=True, timeout=3)
+                if "yes" not in r.stdout:
+                    msg = "El micrófono solo envía silencio (¿desconectado o silenciado por hardware?)."
+            subprocess.Popen(["notify-send", "-a", "JARVIS", "-i", "microphone-sensitivity-muted", "JARVIS", msg])
+        except Exception:
+            pass
+        print(f"[Mic] {msg}")
 
     # ── suscripción ──
     def subscribe(self, maxsize: int = 64) -> queue.Queue:

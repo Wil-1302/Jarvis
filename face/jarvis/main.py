@@ -1,36 +1,33 @@
 """JARVIS face — voz + HUD. El cerebro es OpenClaw (jarvis/brain.py). Linux/Wayland.
 
-Cambios respecto al original (PanPenek/JarvisAi), ver docs/ANALISIS_FACE.md y D-004/D-008:
+Cambios respecto al original (PanPenek/JarvisAi), ver docs/ANALISIS_FACE.md y D-004/D-008/D-009/D-010:
 - Opción A: face no ejecuta tools; OpenClaw hace todas las acciones (sin pyautogui/run_python/power_command).
 - Sin Ollama ni fallback silencioso; sin historial reenviado (la sesión vive en OpenClaw).
-- Sin msvcrt (Windows): teclado solo si hay terminal (F2/Esc no existen; se escribe y Enter).
-- Frases en español; "proveedores" = cerebros (x-openclaw-model), sin keys ni URLs editables.
+- Activación por nombre en frases naturales (VAD + Whisper, jarvis/conversacion.py), modo conversación,
+  respuestas locales pregeneradas y voz en streaming. Atajo Super+J. Sin openWakeWord.
+- Teclado solo si hay terminal (se escribe y Enter).
 """
 from __future__ import annotations
 
 import sys
 import threading
-import time
 from pathlib import Path
 
-import numpy as np
-import sounddevice as sd
 import yaml
 
 from jarvis import hf_offline
 hf_offline.activate()  # antes de faster-whisper/kokoro (importan huggingface_hub)
 
-from jarvis import ducking
-from jarvis.brain import Brain, BrainError
-from jarvis.stt import record_until_silence, transcribe_audio, set_abort_event
-from jarvis.tts import speak, speak_streamed, is_speaking, stop_speaking
+from jarvis import ducking  # noqa: E402
+from jarvis.brain import Brain, BrainError  # noqa: E402
+from jarvis.tts import speak, speak_streamed, stop_speaking  # noqa: E402
 
 _CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
 
 _abort = threading.Event()
-set_abort_event(_abort)
 _muted = threading.Event()
 _event_listeners: list = []
+_conv = None  # jarvis.conversacion.Conversacion
 
 
 def register_event_listener(fn) -> None:
@@ -64,11 +61,6 @@ def abort_all() -> None:
 
 def _is_stop_command(text: str) -> bool:
     return text.strip().lower().strip(" .,!?¡¿") in _FRASES_PARADA
-
-
-def _check_abort() -> None:
-    if _abort.is_set():
-        raise _Aborted()
 
 
 def is_muted() -> bool:
@@ -107,7 +99,7 @@ def _save_config(cfg: dict) -> None:
         yaml.dump(cfg, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
 
-# ─── Cerebros (antes "providers"): solo etiqueta + modelo de OpenClaw; nada de keys ───
+# ─── Cerebros: solo etiqueta + modelo de OpenClaw; nada de keys ───
 
 def get_providers() -> dict:
     return (_load_config().get("llm") or {}).get("brains") or {}
@@ -137,106 +129,42 @@ def _brain() -> Brain:
     return Brain.from_config(_load_config(), on_backup=aviso)
 
 
-def _play_beep() -> None:
+def _procesar_stream(texto: str, on_delta) -> tuple[str, bool]:
+    """Orden → OpenClaw en streaming. Los errores se convierten en una frase hablada."""
     try:
-        t = np.linspace(0, 0.12, int(24000 * 0.12), endpoint=False)
-        sd.play((0.3 * np.sin(2 * np.pi * 600 * t)).astype(np.float32), samplerate=24000)
-        sd.wait()
-    except Exception:
-        pass
-
-
-# ─── Pipeline ───
-
-def _duck_factor() -> float:
-    return float((_load_config().get("audio") or {}).get("ducking", 0.2))
-
-
-def handle_wake() -> None:
-    _abort.clear()
-    try:
-        with ducking.ducked(_duck_factor()):  # desde la activación hasta terminar de responder
-            _handle_wake_inner()
-    except _Aborted:
-        print("[Jarvis] Cancelado.")
-    except Exception as e:
-        import traceback
-        print(f"[ERROR] {e}")
-        traceback.print_exc()
-        if not _abort.is_set():
-            _speak_if_unmuted("Lo siento, señor, algo ha fallado.")
-    finally:
-        _abort.clear()
-        _broadcast({"type": "status", "message": "Listo."})
-        print("[Jarvis] Esperando la palabra de activación...")
-
-
-def _handle_wake_inner() -> None:
-    if is_speaking():
-        stop_speaking()
-    print("[Jarvis] ¡Palabra de activación!")
-    _broadcast({"type": "status", "message": "Escuchando..."})
-    _speak_if_unmuted(_load_config().get("voz", {}).get("saludo_activacion", "¿Sí, señor?"))
-
-    from jarvis.wake import pause_wake_mic, resume_wake_mic
-    pause_wake_mic()
-    time.sleep(0.15)
-    try:
-        audio = record_until_silence()
-    finally:
-        resume_wake_mic()
-    _check_abort()
-    print(f"[Jarvis] {len(audio) / 16000:.1f} s de audio, transcribiendo...")
-    user_text = transcribe_audio(audio)
-    if not user_text.strip():
-        _speak_if_unmuted("No le he entendido, señor.")
-        return
-    print(f"[Usted] {user_text}")
-    if _is_stop_command(user_text):
-        abort_all()
-        raise _Aborted()
-
-    response_text = _process_request(user_text)
-    _check_abort()
-    print(f"[Jarvis] {response_text}")
-    _broadcast({"type": "status", "message": "Hablando..."})
-    _speak_streamed_if_unmuted(response_text)
-
-
-def _process_request(user_text: str) -> str:
-    _check_abort()
-    _play_beep()
-    _broadcast({"type": "user", "text": user_text})
-    _broadcast({"type": "status", "message": "Pensando..."})
-    try:
-        response_text, backup = _brain().ask(user_text)
-    except ConnectionError:
-        response_text = "Señor, no consigo contactar con mi cerebro. El servicio de OpenClaw parece detenido."
-    except TimeoutError:
-        response_text = "Señor, el cerebro está tardando demasiado. Lo dejo aquí; puede preguntarme de nuevo."
-    except BrainError as e:
-        print(f"[Brain] {e}")
-        response_text = "Lo siento, señor: ni el cerebro principal ni el de respaldo han respondido."
-    else:
+        r, backup = _brain().ask_stream(texto, on_delta)
         if backup:
             _broadcast({"type": "provider_changed", "provider": "respaldo"})
-    _check_abort()
-    _broadcast({"type": "response", "text": response_text})
-    return response_text
+        return r, backup
+    except ConnectionError:
+        msg = "Señor, no consigo contactar con mi cerebro. El servicio de OpenClaw parece detenido."
+    except TimeoutError:
+        msg = "Señor, el cerebro está tardando demasiado. Lo dejo aquí; puede preguntarme de nuevo."
+    except BrainError as e:
+        print(f"[Brain] {e}")
+        msg = "Lo siento, señor: ni el cerebro principal ni el de respaldo han respondido."
+    on_delta(msg)
+    return msg, False
+
+
+# ─── Órdenes escritas (HUD y terminal) ───
+
+def _process_request(user_text: str) -> str:
+    _broadcast({"type": "user", "text": user_text})
+    _broadcast({"type": "state", "state": "thinking", "conversation": False})
+    partes: list[str] = []
+    r, _ = _procesar_stream(user_text, partes.append)
+    _broadcast({"type": "response", "text": r})
+    return r
 
 
 def _handle_typed_command(text: str) -> None:
     _abort.clear()
     print(f"[Usted] {text}")
-    try:
-        response = _process_request(text)
-        print(f"[Jarvis] {response}")
-        with ducking.ducked(_duck_factor()):
-            _speak_streamed_if_unmuted(response)
-    except _Aborted:
-        print("[Jarvis] Cancelado.")
-    finally:
-        _abort.clear()
+    response = _process_request(text)
+    print(f"[Jarvis] {response}")
+    with ducking.ducked(float((_load_config().get("audio") or {}).get("ducking", 0.2))):
+        _speak_streamed_if_unmuted(response)
 
 
 def _stdin_listener() -> None:
@@ -253,16 +181,20 @@ def _stdin_listener() -> None:
             _handle_typed_command(cmd)
 
 
+def trigger(source: str = "atajo") -> None:
+    if _conv is not None:
+        _conv.trigger(source)
+
+
 def main() -> None:
+    global _conv
     from jarvis.web import start_web_background, hud_url
 
     cfg = _load_config()
     print("[Jarvis] Arrancando...")
     ducking.restore()  # por si una ejecución anterior se cayó con los sonidos bajados
     from jarvis.mic import get_hub
-    get_hub()  # un solo stream de micrófono (PipeWire) para wake word y STT
-    from jarvis.trigger import start_trigger_server
-    start_trigger_server()  # atajo global (Super+J → jarvis-escucha)
+    get_hub()  # un solo stream de micrófono (PipeWire)
     port = int(cfg.get("hud", {}).get("port", 7860))
     start_web_background(port=port)
     print(f"[Jarvis] HUD: {hud_url(port, con_token=False)} (el enlace con token se abre en el navegador)")
@@ -276,10 +208,20 @@ def main() -> None:
         import webbrowser
         webbrowser.open(hud_url(port, con_token=True))
 
-    _speak_if_unmuted(cfg.get("voz", {}).get("saludo_inicio", "JARVIS en línea, señor."))
-    from jarvis.wake import listen_for_wake_word
-    listen_for_wake_word(handle_wake)
+    from jarvis.stt import _get_model
+    _get_model()  # Whisper cargado antes de escuchar (la 1.ª frase no paga la carga)
+    from jarvis.conversacion import Conversacion
+    _conv = Conversacion(procesar=_procesar_stream, broadcast=_broadcast, abortar=abort_all,
+                         abort_event=_abort, es_parada=_is_stop_command)
+    _conv.start()
+    from jarvis.trigger import start_trigger_server
+    start_trigger_server()  # atajo global (Super+J → jarvis-escucha)
+    print("[Jarvis] Escuchando. Diga «Jarvis, …» o pulse Super+J.")
+    threading.Event().wait()
 
 
 if __name__ == "__main__":
-    main()
+    # Ejecutar SIEMPRE el módulo importado como jarvis.main: si no, web.py/trigger.py (que hacen
+    # `from jarvis.main import …`) cargarían una segunda copia y el HUD no recibiría los eventos.
+    import jarvis.main as _m
+    _m.main()

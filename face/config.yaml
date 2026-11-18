@@ -1,19 +1,20 @@
 # JARVIS face — config (sin secretos: el token del gateway y el del HUD viven en ../.env, permisos 600).
-wake_word:
-  model: hey_jarvis          # ONNX de openWakeWord (pronunciado en inglés)
-  threshold: 0.5
-  chunk_size: 1280
-  stats_every: 30           # resumen cada N s (0 = apagado)
-  log_from: 0.15             # registra en el journal la puntuación máx de cada intento (calibración)
+conversacion:
+  # Activación: el nombre "Jarvis" (y variantes: yarvis, harvis, charvis…) al inicio de la frase, o Super+J.
+  fin_frase: 0.7             # s de silencio que cierran una frase (VAD Silero)
+  debug: true               # traza de VAD en el journal (duraciones, nunca el contenido)
+  silencio_fin: 10           # s sin hablar que devuelven a espera tras responder
 audio:
   # Micrófono del portátil (DMIC del ALC257 vía HDA). NUNCA el de los audífonos BT: abrirlo los pasa a HFP.
   # Si el nodo no existe, WirePlumber usa la fuente por defecto.
   mic_target: alsa_input.pci-0000_05_00.6.analog-stereo
+  barge_in: false           # interrumpir hablando por encima: solo con cancelación de eco
   ducking: 0.2               # los demás sonidos bajan al 20 % de su volumen mientras JARVIS atiende
 stt:
   model: large-v3-turbo      # mejor WER en español en la prueba de JARVIS-WIL (22 %, 0,30 s)
   device: cuda               # si falla, stt.py cae a CPU int8 solo
   compute_type: float16
+  beam_size: 1               # 1 = ~0,4 s por frase en la RTX 4050
   language: es
   prompt: "Jarvis, Spotify, YouTube, Chrome, LibreOffice, Writer, Steam."
 llm:
@@ -26,16 +27,15 @@ llm:
     model: null              # null = el que diga OpenClaw (Claude, con fallback a GPT)
     backup_model: openai/gpt-6-astra
   brains:                    # cambio de cerebro (x-openclaw-model); Bloque 8
-    auto:   {label: "Automático (Claude → GPT)", model: null}
-    claude: {label: "Claude Opus 5.5", model: anthropic/claude-opus-5-5}
+    auto:   {label: "Automático (Sonnet → GPT)", model: null}
+    claude: {label: "Claude Sonnet 5.5", model: anthropic/claude-sonnet-5-5}
+    opus:   {label: "Claude Opus 5.5 (más lento)", model: anthropic/claude-opus-5-5}
     gpt:    {label: "ChatGPT (Codex)", model: openai/gpt-6-astra}
 tts:
   lang_code: e               # e = español
   voice: em_alex             # voces españolas de Kokoro: ef_dora, em_alex, em_santa
   speed: 1.05
-voz:
-  saludo_inicio: "JARVIS en línea, señor."
-  saludo_activacion: "¿Sí, señor?"
+  engine: kokoro
 hud:
   port: 7860
   open_browser: true

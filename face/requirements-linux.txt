@@ -3,11 +3,9 @@
 faster-whisper>=1.1.0
 nvidia-cublas-cu12          # librerías CUDA para ctranslate2 (sin /opt/cuda)
 nvidia-cudnn-cu12>=9,<10
-openWakeWord>=0.6.0
 onnxruntime>=1.18
 kokoro>=0.9.4
 openai>=1.0.0
-pyaudio>=0.2.14
 sounddevice>=0.5.0
 soundfile>=0.12
 numpy>=1.26.0

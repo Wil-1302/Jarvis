@@ -118,6 +118,9 @@
     border-radius: 20px; border: 1px solid var(--glass-border);
     backdrop-filter: blur(10px);
   }
+  .conv-badge { display:none; margin-left:12px; padding:2px 10px; border:1px solid var(--green); color:var(--green);
+    font-size:11px; letter-spacing:2px; border-radius:2px; animation: status-pulse 2s ease-in-out infinite; }
+  .conv-badge.on { display:inline-block; }
   .status-dot {
     width: 8px; height: 8px; border-radius: 50%;
     background: var(--text-muted); transition: all 0.4s;
@@ -611,6 +614,7 @@
     <div class="status-badge">
       <div class="status-dot" id="statusDot"></div>
       <span id="statusText">INITIALIZING</span>
+      <span class="conv-badge" id="convBadge">EN CONVERSACIÓN</span>
     </div>
   </div>
   <div class="header-right">
@@ -901,6 +905,16 @@ function connect() {
     console.log('[WS]', msg.type, msg.text || msg.message || '');
     switch (msg.type) {
       case 'connected': addMsg('system', msg.message.toUpperCase()); break;
+      case 'state': {
+        // Estado explícito de face: idle | listening | thinking | speaking (+ conversation: bool)
+        document.getElementById('convBadge').classList.toggle('on', !!msg.conversation);
+        const st = {idle: ['online', 'EN ESPERA'], listening: ['listening', 'ESCUCHANDO'],
+                    thinking: ['thinking', 'PENSANDO'], speaking: ['speaking', 'HABLANDO']}[msg.state] || ['online', 'EN ESPERA'];
+        setThinking(msg.state === 'thinking');
+        if (msg.state === 'thinking') showActivity('ANALIZANDO'); else hideActivity();
+        setReactorState(st[0]); setStatusText(st[1]);
+        break;
+      }
       case 'status':
         if (msg.message === 'Thinking...') { setThinking(true); showActivity('ANALYZING'); setReactorState('thinking'); setStatusText('PROCESSING'); }
         else if (msg.message === 'Listening...') { setThinking(false); hideActivity(); setReactorState('listening'); setStatusText('LISTENING'); }

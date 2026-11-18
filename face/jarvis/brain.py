@@ -98,6 +98,78 @@ class Brain:
         content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
         return content or "Hecho, señor."
 
+    def _stream(self, text: str, model: str | None, on_delta: Callable[[str], None]) -> str:
+        """Igual que _post pero con stream=true (SSE): llama on_delta con cada fragmento de texto."""
+        import json as _json
+        token = _leer_env("OPENCLAW_GATEWAY_TOKEN")
+        if not token:
+            raise BrainError("Falta OPENCLAW_GATEWAY_TOKEN en .env (ejecuta scripts/sync-brain.sh).")
+        headers = {"Authorization": f"Bearer {token}"}
+        if model:
+            headers["x-openclaw-model"] = model
+        body = {"model": self.agent, "user": self.user, "stream": True,
+                "messages": [{"role": "user", "content": text}]}
+        full = ""
+        try:
+            with httpx.stream("POST", f"{self.base_url}/chat/completions", json=body, headers=headers,
+                              timeout=httpx.Timeout(self.timeout, connect=5.0)) as r:
+                if r.status_code >= 400:
+                    raw = r.read().decode(errors="ignore")
+                    try:
+                        err = _json.loads(raw).get("error") or {}
+                        msg = err.get("message") if isinstance(err, dict) else str(err)
+                    except ValueError:
+                        msg = raw[:300]
+                    raise BrainError(f"HTTP {r.status_code}: {msg}")
+                for line in r.iter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        d = _json.loads(payload)
+                    except ValueError:
+                        continue
+                    if d.get("error"):
+                        err = d["error"]
+                        raise BrainError(f"stream: {err.get('message') if isinstance(err, dict) else err}")
+                    delta = (((d.get("choices") or [{}])[0].get("delta") or {}).get("content")) or ""
+                    if delta:
+                        full += delta
+                        on_delta(delta)
+        except httpx.ConnectError as e:
+            raise ConnectionError("El gateway de OpenClaw no responde en 127.0.0.1:18789.") from e
+        except httpx.TimeoutException as e:
+            raise TimeoutError(f"El cerebro tardó más de {self.timeout:.0f} s.") from e
+        if not full.strip():
+            full = "Hecho, señor."
+            on_delta(full)
+        return full
+
+    def ask_stream(self, text: str, on_delta: Callable[[str], None]) -> tuple[str, bool]:
+        """Como ask(), en streaming. Solo cambia al respaldo si el principal falla ANTES del primer
+        fragmento (si ya empezó, el turno pudo ejecutar acciones y repetirlo las duplicaría)."""
+        started = [False]
+
+        def _d(x: str) -> None:
+            started[0] = True
+            on_delta(x)
+        try:
+            return self._stream(text, self.model_override, _d), False
+        except (ConnectionError, TimeoutError):
+            raise
+        except BrainError as e:
+            if started[0] or self.model_override == self.backup_model or not _PATRON_FALLO_MODELO.search(str(e)):
+                raise BrainError(str(e)) from e
+            print(f"[Brain] Fallo del cerebro principal ({e}); reintento con {self.backup_model}")
+            if self.on_backup:
+                self.on_backup(AVISO_RESPALDO)
+            try:
+                return self._stream(text, self.backup_model, on_delta), True
+            except Exception as e2:
+                raise BrainError(f"Principal: {e} | Respaldo: {e2}") from e2
+
     def ask(self, text: str) -> tuple[str, bool]:
         """Devuelve (respuesta, usó_respaldo_forzado)."""
         try:

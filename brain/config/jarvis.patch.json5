@@ -4,10 +4,12 @@
   agents: {
     defaults: {
       model: {
-        primary: "anthropic/claude-opus-5-5",    // mejor modelo que permite el plan Pro (Fable pide créditos extra)
+        // Sonnet: 1ª oración en 1,5 s frente a 3,7 s de Opus (mediana, streaming, 2026-11-17). Opus queda a mano por voz.
+        primary: "anthropic/claude-sonnet-5-5",
         fallbacks: ["openai/gpt-6-astra"],       // respaldo: suscripción ChatGPT vía OAuth de Codex
       },
       models: {
+        "anthropic/claude-sonnet-5-5": { agentRuntime: { id: "claude-cli" } },
         "anthropic/claude-opus-5-5": { agentRuntime: { id: "claude-cli" } },
       },
     },
