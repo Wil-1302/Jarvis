@@ -6,7 +6,7 @@
       model: {
         // Sonnet: 1ª oración en 1,5 s frente a 3,7 s de Opus (mediana, streaming, 2026-11-17). Opus queda a mano por voz.
         primary: "anthropic/claude-sonnet-5-5",
-        fallbacks: ["openai/gpt-6-astra"],       // respaldo: suscripción ChatGPT vía OAuth de Codex
+        fallbacks: ["openai/gpt-5.6-terra"],     // respaldo ChatGPT (Codex OAuth). gpt-6-astra/sol no están en el plan del señor
       },
       models: {
         "anthropic/claude-sonnet-5-5": { agentRuntime: { id: "claude-cli" } },
@@ -20,6 +20,8 @@
         workspace: "~/.openclaw/workspace-jarvis",
         agentDir: "~/.openclaw/agents/jarvis/agent",
         identity: { name: "JARVIS" },
+        // Estricto (sin fallback nativo): el salto a GPT lo hace face y lo anuncia por voz (D-014).
+        model: { primary: "anthropic/claude-sonnet-5-5", fallbacks: [] },
       },
     },
   },

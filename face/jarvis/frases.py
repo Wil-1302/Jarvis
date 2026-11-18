@@ -109,6 +109,8 @@ class Frases:
         a = np.load(f) if f.exists() else None
         if a is None:
             a = self.engine.synth(texto)
+            if getattr(self.engine, "last_was_backup", False):
+                return a  # salió con la voz de respaldo: no se guarda (no mezclar voces)
             np.save(f, a)
         with self._lock:
             self.audio[texto] = a

@@ -56,3 +56,25 @@ def test_stream_primer_audio_avisa(eng):
     visto = []
     T.speak_stream(iter(["Hola."]), on_first_audio=lambda: visto.append(1))
     assert visto == [1]
+
+
+def test_respaldo_piper_si_edge_falla(capsys):
+    class Mala:
+        name = "edge-x"
+        def synth(self, t):
+            raise TimeoutError("sin internet")
+    class Piper(_Eng):
+        name = "piper-x"
+    e = T.FallbackEngine(lambda: Mala(), Piper(), cooldown=60)
+    assert e.synth("Hola.").size and e.last_was_backup
+    assert "respaldo piper-x" in capsys.readouterr().out
+    e.synth("Otra.")                      # durante el cooldown ni se intenta el principal
+    assert e.backup.dichas == ["Hola.", "Otra."]
+
+
+def test_azure_ssml_escapa_y_aplica_prosodia(monkeypatch):
+    monkeypatch.setenv("AZURE_SPEECH_KEY", "k" * 32)
+    monkeypatch.setenv("AZURE_SPEECH_REGION", "eastus")
+    a = T.AzureEngine({"tts": {"edge": {"voice": "es-MX-JorgeNeural", "rate": "-8%", "pitch": "-2Hz"}}})
+    x = a.ssml("Café & <té>")
+    assert 'name="es-MX-JorgeNeural"' in x and 'rate="-8%"' in x and "Café &amp; &lt;té&gt;" in x

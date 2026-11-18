@@ -6,6 +6,10 @@ cd "$(dirname "$0")/../face"
 echo ">> venv Python 3.11 en face/.venv"; [[ -x .venv/bin/python ]] || uv venv -q --python 3.11 .venv
 echo ">> torch (CPU)";  uv pip install -q --python .venv/bin/python --index-url https://download.pytorch.org/whl/cpu torch
 echo ">> dependencias (requirements-linux.txt)"; uv pip install -q --python .venv/bin/python -r requirements-linux.txt
+echo ">> voz Piper de respaldo (es_MX-claude-high, ~63 MB) en ~/.local/share/jarvis/piper"
+PIPER=~/.local/share/jarvis/piper; install -d "$PIPER"
+[[ -f $PIPER/es_MX-claude-high.onnx ]] || .venv/bin/python -m piper.download_voices --download-dir "$PIPER" es_MX-claude-high
+echo ">> secretos fuera del repo (refuerzo a)"; bash ../scripts/migrar-secretos.sh
 echo ">> unidad systemd de usuario"; install -Dm644 ../scripts/systemd/jarvis-face.service ~/.config/systemd/user/jarvis-face.service
 systemctl --user daemon-reload
 

@@ -16,3 +16,6 @@ websockets>=13              # WebSocket del HUD (uvicorn no lo trae solo)
 httpx>=0.27
 pytest>=8.0.0
 pytest-mock>=3.14.0
+edge-tts>=7.3              # voz Jorge (servicio NO oficial de Microsoft, D-012)
+piper-tts>=1.8             # respaldo de voz local
+scipy>=1.11                # remuestreo de la voz

@@ -1,6 +1,7 @@
 """Voz de JARVIS: motor intercambiable + reproductor persistente + habla en streaming.
 
-- Motor (`tts.engine` en config.yaml): hoy `kokoro` (CPU). La interfaz es synth(texto) → float32 mono a `rate`.
+- Motor (`tts.engine`): `edge` (Jorge, con respaldo Piper), `azure` (oficial, preparado), `piper` o `kokoro`.
+  La interfaz es synth(texto) → float32 mono a `rate`.
 - Reproductor: UN OutputStream abierto mientras dura la conversación (sin re-arrancar el sink Bluetooth en
   cada frase, que costaba ~0,3 s y comía la primera sílaba). Se cierra al volver a espera.
 - speak_stream(): recibe fragmentos de texto (del cerebro en streaming), corta oraciones, sintetiza la
@@ -51,6 +52,138 @@ class KokoroEngine:
         return np.concatenate(parts) if parts else np.zeros(0, np.float32)
 
 
+def _to_rate(audio: np.ndarray, sr: int, rate: int) -> np.ndarray:
+    if sr == rate or audio.size == 0:
+        return audio.astype(np.float32)
+    from math import gcd
+    from scipy.signal import resample_poly
+    g = gcd(rate, sr)
+    return resample_poly(audio, rate // g, sr // g).astype(np.float32)
+
+
+def _decode_mp3(data: bytes) -> tuple[np.ndarray, int]:
+    import io
+    import soundfile as sf
+    a, sr = sf.read(io.BytesIO(data), dtype="float32")
+    return (a.mean(axis=1) if a.ndim > 1 else a), sr
+
+
+class PiperEngine:
+    """Local (CPU, ~45 ms por oración). Respaldo de Edge/Azure."""
+    rate = 24000
+
+    def __init__(self, cfg: dict):
+        import os
+        from piper import PiperVoice, SynthesisConfig
+        p = (cfg["tts"].get("piper") or {})
+        model = os.path.expanduser(p.get("model", "~/.local/share/jarvis/piper/es_MX-claude-high.onnx"))
+        self.voice = PiperVoice.load(model)
+        self.cfg = SynthesisConfig(length_scale=float(p.get("length_scale", 1.1)))
+        self.name = "piper-" + os.path.basename(model).removesuffix(".onnx")
+
+    def synth(self, text: str) -> np.ndarray:
+        chunks = list(self.voice.synthesize(text, syn_config=self.cfg))
+        if not chunks:
+            return np.zeros(0, np.float32)
+        a = np.concatenate([c.audio_float_array for c in chunks])
+        return _to_rate(a, chunks[0].sample_rate, self.rate)
+
+
+class EdgeEngine:
+    """Edge TTS (servicio NO oficial de Microsoft: el texto sale del equipo). D-012."""
+    rate = 24000
+
+    def __init__(self, cfg: dict):
+        e = cfg["tts"].get("edge") or {}
+        self.voice = e.get("voice", "es-MX-JorgeNeural")
+        self.rate_s, self.pitch = e.get("rate", "-8%"), e.get("pitch", "-2Hz")
+        self.timeout = float(e.get("timeout", 4.0))
+        self.name = f"edge-{self.voice}{self.rate_s}{self.pitch}".replace("%", "").replace("+", "p")
+
+    def synth(self, text: str) -> np.ndarray:
+        import asyncio
+        import edge_tts
+
+        async def run() -> bytes:
+            buf = b""
+            com = edge_tts.Communicate(text, self.voice, rate=self.rate_s, pitch=self.pitch)
+            async for c in com.stream():
+                if c["type"] == "audio":
+                    buf += c["data"]
+            return buf
+
+        data = asyncio.run(asyncio.wait_for(run(), self.timeout))
+        if not data:
+            raise RuntimeError("Edge no devolvió audio")
+        a, sr = _decode_mp3(data)
+        return _to_rate(a, sr, self.rate)
+
+
+class AzureEngine:
+    """Azure Speech OFICIAL (misma voz Jorge). Preparado, sin activar: requiere AZURE_SPEECH_KEY y
+    AZURE_SPEECH_REGION en ~/.config/jarvis/secrets.env (600) o en el .env del repo. D-012."""
+    rate = 24000
+
+    def __init__(self, cfg: dict):
+        from jarvis.brain import _leer_env
+        a = cfg["tts"].get("azure") or {}
+        e = cfg["tts"].get("edge") or {}
+        self.voice = a.get("voice", e.get("voice", "es-MX-JorgeNeural"))
+        self.rate_s, self.pitch = a.get("rate", e.get("rate", "-8%")), a.get("pitch", e.get("pitch", "-2Hz"))
+        self.timeout = float(a.get("timeout", 4.0))
+        self.key, self.region = _leer_env("AZURE_SPEECH_KEY"), _leer_env("AZURE_SPEECH_REGION")
+        if not self.key or not self.region:
+            raise RuntimeError("Faltan AZURE_SPEECH_KEY / AZURE_SPEECH_REGION")
+        self.name = f"azure-{self.voice}{self.rate_s}{self.pitch}".replace("%", "").replace("+", "p")
+
+    def ssml(self, text: str) -> str:
+        from xml.sax.saxutils import escape
+        return (f'<speak version="1.0" xml:lang="es-MX"><voice name="{self.voice}">'
+                f'<prosody rate="{self.rate_s}" pitch="{self.pitch}">{escape(text)}</prosody></voice></speak>')
+
+    def synth(self, text: str) -> np.ndarray:
+        import httpx
+        r = httpx.post(f"https://{self.region}.tts.speech.microsoft.com/cognitiveservices/v1",
+                       headers={"Ocp-Apim-Subscription-Key": self.key, "Content-Type": "application/ssml+xml",
+                                "X-Microsoft-OutputFormat": "raw-24khz-16bit-mono-pcm", "User-Agent": "jarvis-face"},
+                       content=self.ssml(text).encode(), timeout=self.timeout)
+        r.raise_for_status()
+        return np.frombuffer(r.content, np.int16).astype(np.float32) / 32768
+
+
+class FallbackEngine:
+    """Motor principal (Edge/Azure) con respaldo automático a Piper si falla o no hay internet.
+    Tras un fallo usa Piper durante `cooldown` s antes de volver a intentar el principal."""
+    rate = 24000
+
+    def __init__(self, primary_factory, backup: PiperEngine, cooldown: float = 60.0):
+        self.backup = backup
+        self.cooldown = cooldown
+        self._down_until = 0.0
+        self.last_was_backup = False
+        try:
+            self.primary = primary_factory()
+            self.name = self.primary.name
+        except Exception as e:
+            print(f"[Voz] El motor principal no arrancó ({e}); uso {backup.name}.")
+            self.primary, self.name = None, backup.name
+
+    def synth(self, text: str) -> np.ndarray:
+        if self.primary is not None and time.time() >= self._down_until:
+            try:
+                a = self.primary.synth(text)
+                if self.last_was_backup:
+                    print(f"[Voz] {self.primary.name} vuelve a responder.")
+                self.last_was_backup = False
+                return a
+            except Exception as e:
+                self._down_until = time.time() + self.cooldown
+                print(f"[Voz] {self.primary.name} falló ({type(e).__name__}: {e or 'sin respuesta'}); "
+                      f"respaldo {self.backup.name} durante {self.cooldown:.0f} s.")
+        self.last_was_backup = True
+        return self.backup.synth(text)
+
+
 _engine = None
 _engine_lock = threading.Lock()
 
@@ -61,9 +194,17 @@ def get_engine():
         if _engine is None:
             cfg = _load_config()
             kind = cfg["tts"].get("engine", "kokoro")
-            if kind != "kokoro":
+            if kind == "kokoro":
+                _engine = KokoroEngine(cfg)
+            elif kind == "piper":
+                _engine = PiperEngine(cfg)
+            elif kind in ("edge", "azure"):
+                factory = {"edge": EdgeEngine, "azure": AzureEngine}[kind]
+                _engine = FallbackEngine(lambda: factory(cfg), PiperEngine(cfg),
+                                         float(cfg["tts"].get("cooldown", 60)))
+            else:
                 raise ValueError(f"Motor de voz desconocido: {kind}")
-            _engine = KokoroEngine(cfg)
+            print(f"[Voz] Motor: {_engine.name}")
         return _engine
 
 

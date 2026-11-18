@@ -10,11 +10,28 @@ chk "gateway activo" systemctl --user is-active openclaw-gateway.service
 chk "gateway solo en loopback" bash -c "ss -tlnH 'sport = :18789' | awk '{print \$4}' | grep -q '^127.0.0.1:' && ! ss -tlnH 'sport = :18789' | awk '{print \$4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):'"
 chk "encierro systemd aplicado" bash -c "systemctl --user show openclaw-gateway -p DropInPaths | grep -q jarvis-aislamiento"
 chk "login de Claude Code" bash -c "claude auth status --text | grep -qi 'login method'"
-chk "token del gateway en .env (600)" bash -c "[[ \$(stat -c %a '$REPO/.env') == 600 ]] && grep -q '^OPENCLAW_GATEWAY_TOKEN=.\{32,\}' '$REPO/.env'"
-TOKEN="$(grep -m1 '^OPENCLAW_GATEWAY_TOKEN=' "$REPO/.env" 2>/dev/null | cut -d= -f2-)"
+SECRETS="${JARVIS_SECRETS:-$HOME/.config/jarvis/secrets.env}"
+chk "secretos de face en ~/.config/jarvis/secrets.env (600, carpeta 700)" bash -c "[[ \$(stat -c %a '$SECRETS') == 600 && \$(stat -c %a '$(dirname "$SECRETS")') == 700 ]] && grep -q '^OPENCLAW_GATEWAY_TOKEN=.\{32,\}' '$SECRETS'"
+chk "sin .env antiguo en el repo" test ! -e "$REPO/.env"
+TOKEN="$(grep -m1 '^OPENCLAW_GATEWAY_TOKEN=' "$SECRETS" 2>/dev/null | cut -d= -f2-)"
 chk "/v1/models lista openclaw/jarvis" bash -c "curl -sf -H 'Authorization: Bearer $TOKEN' http://127.0.0.1:18789/v1/models | grep -q openclaw/jarvis"
 chk "sin token → 401" bash -c "[[ \$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:18789/v1/models) == 401 ]]"
-chk "respaldo Codex con login" bash -c "openclaw models list --provider openai 2>/dev/null | grep -q 'gpt-6-astra.*yes'"
+chk "principal de face = principal del agente jarvis (estricto)" bash -c "[[ \$(jq -r .agents.entries.jarvis.model.primary ~/.openclaw/openclaw.json) == \$(grep -m1 'primary_model:' '$REPO/face/config.yaml' | awk '{print \$2}') ]]"
+BACKUP="$(grep -m1 'backup_model:' "$REPO/face/config.yaml" | awk '{print $2}')"
+chk "respaldo $BACKUP responde (login de ChatGPT/Codex)" bash -c "curl -sf -m 90 -H 'Authorization: Bearer $TOKEN' -H 'x-openclaw-model: $BACKUP' -H 'Content-Type: application/json' http://127.0.0.1:18789/v1/chat/completions -d '{\"model\":\"openclaw/jarvis\",\"user\":\"doctor\",\"messages\":[{\"role\":\"user\",\"content\":\"Responde solo: ok\"}]}' | grep -q choices"
+echo "Refuerzos (D-013)"
+chk "e) ni systemctl/systemd-run/loginctl/crontab/at/busctl/intérpretes en la allowlist; ask=on-miss, sin aprobar → denegar" bash -c "openclaw approvals get --json 2>/dev/null | python3 -c '
+import json,sys,re
+d=json.load(sys.stdin)[\"file\"]; malo=re.compile(r\"(^|/)(systemctl|systemd-run|loginctl|crontab|at|batch|busctl|gdbus|dbus-send|sudo|doas|pkexec|sh|bash|fish|zsh|python3?|node|perl|ruby|env|openclaw|sqlite3)\$\")
+for n,a in [(\"defaults\",d[\"defaults\"])]+list(d.get(\"agents\",{}).items()):
+    assert a.get(\"askFallback\",\"deny\")==\"deny\" and a.get(\"security\")!=\"full\" and not a.get(\"autoAllowSkills\"), n
+    for e in a.get(\"allowlist\",[]): assert not malo.search(e[\"pattern\"]), e[\"pattern\"]
+'"
+P=$(systemctl --user show openclaw-gateway -p MainPID --value)
+chk "a) el gateway no puede leer ~/.config/jarvis" bash -c "! nsenter -t $P -U -m --preserve-credentials -- cat '$SECRETS' >/dev/null 2>&1"
+chk "b) el gateway no puede escribir unidades, atajos, shells, ~/.local/bin ni el repo" bash -c "for f in ~/.config/systemd/user/.p ~/.config/caelestia/.p ~/.config/fish/.p ~/.local/bin/.p '$REPO/.p'; do nsenter -t $P -U -m --preserve-credentials -- touch \$f 2>/dev/null && { rm -f \$f; exit 1; }; done; true"
+chk "c) workspace propio del agente jarvis" bash -c "openclaw config get agents.entries.jarvis.workspace 2>/dev/null | grep -q workspace-jarvis"
+chk "d) el gateway no puede reescribir openclaw.json, AGENTS.md ni skills" bash -c "for f in ~/.openclaw/openclaw.json ~/.openclaw/workspace-jarvis/AGENTS.md; do nsenter -t $P -U -m --preserve-credentials -- sh -c \"echo >> \$f\" 2>/dev/null && exit 1; done; ! nsenter -t $P -U -m --preserve-credentials -- touch ~/.openclaw/workspace-jarvis/skills/.p 2>/dev/null"
 echo "Cara (face)"
 chk "venv de face" test -x "$REPO/face/.venv/bin/python"
 chk "jarvis-face activo" systemctl --user is-active jarvis-face.service

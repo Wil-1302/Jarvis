@@ -41,7 +41,8 @@ def activate() -> bool:
     whisper = cfg["stt"]["model"]
     repo = _WHISPER_REPOS.get(whisper, whisper if "/" in whisper else None)
     ok = repo is not None and _has(repo, ["model.bin", "config.json", "tokenizer.json"])
-    ok = ok and _has("hexgrad/Kokoro-82M", ["config.json", "kokoro-v1_0.pth", f"voices/{cfg['tts']['voice']}.pt"])
+    if cfg["tts"].get("engine", "kokoro") == "kokoro":
+        ok = ok and _has("hexgrad/Kokoro-82M", ["config.json", "kokoro-v1_0.pth", f"voices/{cfg['tts']['voice']}.pt"])
     if ok:
         os.environ["HF_HUB_OFFLINE"] = "1"
         print("[Modelos] En caché: sin consultas a Hugging Face (JARVIS_HF_ONLINE=1 para actualizar).")

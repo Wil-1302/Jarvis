@@ -47,7 +47,7 @@ def test_limite_de_claude_cambia_a_respaldo_y_avisa(monkeypatch):
     monkeypatch.setattr(B.httpx, "post", post)
     r, backup = B.Brain(on_backup=avisos.append).ask("hola")
     assert (r, backup) == ("Respuesta de GPT.", True)
-    assert llamadas == [None, "openai/gpt-6-astra"]
+    assert llamadas == [None, "openai/gpt-5.6-terra"]
     assert avisos == ["Señor, cambio al cerebro de respaldo."]
 
 
@@ -79,5 +79,6 @@ def test_error_no_de_modelo_no_cambia(monkeypatch):
 def test_sin_token(monkeypatch):
     monkeypatch.delenv("OPENCLAW_GATEWAY_TOKEN")
     monkeypatch.setattr(B, "_REPO_ENV", B.Path("/nonexistent/.env"))
+    monkeypatch.setattr(B, "SECRETS", B.Path("/nonexistent/secrets.env"))
     with pytest.raises(B.BrainError, match="OPENCLAW_GATEWAY_TOKEN"):
         B.Brain().ask("hola")

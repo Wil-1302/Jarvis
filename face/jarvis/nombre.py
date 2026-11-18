@@ -61,3 +61,13 @@ if __name__ == "__main__":
               "Ayer vi una película donde salía Jarvis.", "Travis llegó tarde.", "Hola, ¿qué tal Jarvis?",
               "Charvis, necesito que me ayudes", "Jarvis.", "Buenas noches, Jarvis", "Javier, ven aquí"]:
         print(f"{t!r:45} → {detectar(t)}")
+
+
+def parecido(texto: str) -> tuple[float, int]:
+    """(máximo parecido con "jarvis" entre las palabras, posición). Solo para la traza; no revela el texto."""
+    best, pos = 0.0, -1
+    for i, w in enumerate(_norm(texto)):
+        r = difflib.SequenceMatcher(None, w, "jarvis").ratio()
+        if r > best:
+            best, pos = r, i
+    return round(best, 2), pos

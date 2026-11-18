@@ -19,7 +19,9 @@ from typing import Callable
 
 import httpx
 
-_REPO_ENV = Path(__file__).resolve().parents[2] / ".env"
+_REPO_ENV = Path(__file__).resolve().parents[2] / ".env"   # antiguo (solo compatibilidad)
+# Refuerzo a: secretos de face fuera del repo y fuera del alcance del gateway (InaccessiblePaths).
+SECRETS = Path(os.environ.get("JARVIS_SECRETS", Path.home() / ".config" / "jarvis" / "secrets.env"))
 AVISO_RESPALDO = "Señor, cambio al cerebro de respaldo."
 
 # Errores que justifican cambiar de cerebro (límites, cuotas, auth del proveedor, caídas).
@@ -35,16 +37,17 @@ class BrainError(RuntimeError):
 
 
 def _leer_env(nombre: str) -> str:
-    """Variable de entorno o, si no está, del .env del repo (permisos 600). Nunca se imprime."""
+    """Variable de entorno, o de ~/.config/jarvis/secrets.env (600), o del .env antiguo. Nunca se imprime."""
     valor = os.environ.get(nombre, "")
     if valor:
         return valor
-    try:
-        for linea in _REPO_ENV.read_text(encoding="utf-8").splitlines():
-            if linea.startswith(f"{nombre}="):
-                return linea.split("=", 1)[1].strip().strip('"').strip("'")
-    except OSError:
-        pass
+    for f in (SECRETS, _REPO_ENV):
+        try:
+            for linea in f.read_text(encoding="utf-8").splitlines():
+                if linea.startswith(f"{nombre}="):
+                    return linea.split("=", 1)[1].strip().strip('"').strip("'")
+        except OSError:
+            pass
     return ""
 
 
@@ -55,7 +58,7 @@ class Brain:
     user: str = "face:jarvis"
     timeout: float = 180.0
     model_override: str | None = None        # cerebro elegido por voz (x-openclaw-model); None = el de OpenClaw
-    backup_model: str = "openai/gpt-6-astra"
+    backup_model: str = "openai/gpt-5.6-terra"
     on_backup: Callable[[str], None] | None = None   # se llama con AVISO_RESPALDO antes de reintentar
 
     @classmethod
@@ -66,7 +69,10 @@ class Brain:
             agent=oc.get("agent", cls.agent),
             user=oc.get("user", cls.user),
             timeout=float(oc.get("timeout", cls.timeout)),
-            model_override=oc.get("model") or None,
+            # Sin cerebro elegido por voz se pide el principal EXPLÍCITO (selección estricta): así el salto
+            # al respaldo lo hace face y lo anuncia por voz (el fallback nativo de OpenClaw es silencioso
+            # para el endpoint HTTP: no indica qué modelo respondió). D-014.
+            model_override=oc.get("model") or oc.get("primary_model") or None,
             backup_model=oc.get("backup_model", cls.backup_model),
             on_backup=on_backup,
         )
@@ -74,7 +80,7 @@ class Brain:
     def _post(self, text: str, model: str | None) -> str:
         token = _leer_env("OPENCLAW_GATEWAY_TOKEN")
         if not token:
-            raise BrainError("Falta OPENCLAW_GATEWAY_TOKEN en .env (ejecuta scripts/sync-brain.sh).")
+            raise BrainError("Falta OPENCLAW_GATEWAY_TOKEN en ~/.config/jarvis/secrets.env (scripts/sync-brain.sh).")
         headers = {"Authorization": f"Bearer {token}"}
         if model:
             headers["x-openclaw-model"] = model
@@ -103,7 +109,7 @@ class Brain:
         import json as _json
         token = _leer_env("OPENCLAW_GATEWAY_TOKEN")
         if not token:
-            raise BrainError("Falta OPENCLAW_GATEWAY_TOKEN en .env (ejecuta scripts/sync-brain.sh).")
+            raise BrainError("Falta OPENCLAW_GATEWAY_TOKEN en ~/.config/jarvis/secrets.env (scripts/sync-brain.sh).")
         headers = {"Authorization": f"Bearer {token}"}
         if model:
             headers["x-openclaw-model"] = model
@@ -156,7 +162,15 @@ class Brain:
             started[0] = True
             on_delta(x)
         try:
-            return self._stream(text, self.model_override, _d), False
+            try:
+                return self._stream(text, self.model_override, _d), False
+            except BrainError as e:
+                # Gateway reiniciándose (runtime aún en preparación / drenando): un reintento, mismo modelo.
+                if started[0] or not re.search(r"HTTP 50[03]", str(e)):
+                    raise
+                import time as _t
+                _t.sleep(2.0)
+                return self._stream(text, self.model_override, _d), False
         except (ConnectionError, TimeoutError):
             raise
         except BrainError as e:

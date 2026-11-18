@@ -153,7 +153,10 @@ class Conversacion:
                 llama, resto = detectar(texto)
                 if not llama:
                     if self.debug:
-                        print(f"[VAD] sin nombre ({len(texto.split())} palabras, STT {t_stt:.2f} s)")
+                        from jarvis.nombre import parecido
+                        r, pos = parecido(texto)
+                        print(f"[VAD] sin nombre ({len(texto.split())} palabras, STT {t_stt:.2f} s, "
+                              f"parecido a «jarvis» {r} en la palabra {pos + 1})")
                     continue  # sin nombre: ni se registra ni se envía
                 self._entrar()
             else:

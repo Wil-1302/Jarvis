@@ -27,22 +27,16 @@ app = FastAPI(title="Jarvis", docs_url=None, redoc_url=None, openapi_url=None)
 # ─── Seguridad del HUD: token (cookie HttpOnly) + Host/Origin locales ───
 
 def _hud_token() -> str:
-    """JARVIS_HUD_TOKEN del entorno o del .env; si no existe, se genera y se guarda (600)."""
-    tok = os.environ.get("JARVIS_HUD_TOKEN", "")
-    if tok:
-        return tok
-    lines = []
-    if _REPO_ENV.exists():
-        lines = _REPO_ENV.read_text(encoding="utf-8").splitlines()
-        for ln in lines:
-            if ln.startswith("JARVIS_HUD_TOKEN=") and len(ln) > 20:
-                tok = ln.split("=", 1)[1].strip()
-    if not tok:
+    """JARVIS_HUD_TOKEN del entorno o de ~/.config/jarvis/secrets.env; si no existe, se genera y se guarda (600)."""
+    from jarvis.brain import SECRETS, _leer_env
+    tok = _leer_env("JARVIS_HUD_TOKEN")
+    if len(tok) < 20:
         tok = secrets.token_urlsafe(32)
-        fd = os.open(_REPO_ENV, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        SECRETS.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd = os.open(SECRETS, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         with os.fdopen(fd, "a", encoding="utf-8") as f:
             f.write(f"JARVIS_HUD_TOKEN={tok}\n")
-        os.chmod(_REPO_ENV, 0o600)
+        os.chmod(SECRETS, 0o600)
     os.environ["JARVIS_HUD_TOKEN"] = tok
     return tok
 
