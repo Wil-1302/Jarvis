@@ -45,11 +45,22 @@ _ALUCINACIONES = (
 )
 
 
+def _prompt(stt: dict) -> str | None:
+    """Vocabulario del señor (D-025: ~/.config/jarvis/vocabulario.txt, privado) o el prompt fijo de config.yaml."""
+    if stt.get("vocabulario", True):
+        try:
+            from jarvis.vocabulario import prompt
+            return prompt()
+        except Exception:
+            pass
+    return stt.get("prompt") or None
+
+
 def _transcribe(model, audio: np.ndarray) -> str:
     stt = _load_config()["stt"]
     segments, _ = model.transcribe(
         audio, beam_size=int(stt.get("beam_size", 1)), language=stt.get("language", "es"),
-        initial_prompt=stt.get("prompt") or None, vad_filter=True,
+        initial_prompt=_prompt(stt), vad_filter=True,
         condition_on_previous_text=False,
     )
     partes = []

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# JARVIS — vocabulario privado para Whisper (D-025): ~/.config/jarvis/vocabulario.txt (600, fuera del repo).
+#   jarvis-vocabulario            regenera las secciones automáticas (artistas y aplicaciones); conserva "# propios"
+#   jarvis-vocabulario ver        muestra cuántas palabras hay por sección
+# Fuentes, todas locales: artistas de la caché de letras del escritorio (lo que suena en Spotify) y los nombres de
+# las aplicaciones instaladas. Las palabras propias (nombres de personas, lugares, jerga) se añaden a mano bajo
+# "# propios" o pidiéndoselo a JARVIS.
+set -euo pipefail
+FACE="$(cd "$(dirname "$0")/../face" && pwd)"
+cd "$FACE"; exec .venv/bin/python -m jarvis.vocabulario "$@"
