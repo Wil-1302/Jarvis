@@ -13,7 +13,13 @@ audio:
   # Micrófono del portátil (DMIC del ALC257 vía HDA). NUNCA el de los audífonos BT: abrirlo los pasa a HFP.
   # Si el nodo no existe, WirePlumber usa la fuente por defecto.
   mic_target: alsa_input.pci-0000_05_00.6.analog-stereo
-  barge_in: false           # interrumpir hablando por encima: solo con cancelación de eco
+  # D-021: filtro del audio del PROPIO PC (vídeos, música, llamadas y la voz de JARVIS): se cancela del micrófono con
+  # WebRTC AEC3 usando como referencia el monitor de la salida por defecto. Con audífonos no hace falta y se salta.
+  filtro_pc: auto            # auto | off
+  stt_fuente: limpio         # limpio | crudo: qué audio transcribe Whisper (la detección siempre va sobre el limpio)
+  barge_in: auto             # interrumpirle hablando: auto = solo si el filtro está activo o hay audífonos
+  barge_in_umbral: 0.7       # prob. de voz (VAD Silero) que cuenta como interrupción
+  barge_in_min_voz: 0.12     # s de voz seguida antes de cortarle (objetivo: callarse en < 0,3 s)
   ducking: 0.2               # los demás sonidos bajan al 20 % de su volumen mientras JARVIS atiende
 stt:
   model: large-v3-turbo      # mejor WER en español en la prueba de JARVIS-WIL (22 %, 0,30 s)

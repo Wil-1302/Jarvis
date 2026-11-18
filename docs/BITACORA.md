@@ -174,3 +174,23 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
   conversación de 18 turnos). ⏸ decidir si se borra también.
 - La huella de voz NO está en ~/.config/jarvis/voz.npz (ni en otro sitio): face sigue con la verificación desactivada.
 
+## 2026-11-18 · Sesión de audio (en curso): filtro del PC, interrupción, cierre, latencia, fluidez
+- Verificación de hablante apagada por decisión del señor (`hablante.activo: false`); código conservado (D-015).
+- Cancelador de eco: envoltorio C de WebRTC AEC3 (`face/native/aec.cc`, la librería de PipeWire) cargado por ctypes
+  (`jarvis/eco.py`). Sintético: −32 dB. Detección de audífonos (BT/toma de auriculares; altavoz BT no cuenta).
+- `jarvis/mic.py` reescrito: micrófono + monitor de la salida por defecto, AEC en vivo, anillo de 30 s del original
+  por índice de muestra; las frases llevan su índice (`Utterance.i0`). Interrupción por voz (`barge_in: auto`) que
+  corta la voz y la petición al cerebro. Pendiente de medir con grabaciones reales (⏸ el señor da la señal).
+- Cierre (D-022): despedidas por "solo quedan expresiones de cierre" (adiós, ya, gracias, termina, cierra la
+  conversación, por favor…); 2 s sin escuchar y cola vaciada; Super+J reactiva.
+- Latencia (D-024): Edge con conexión persistente precalentada al empezar a hablar: frase completa en 0,35–0,4 s
+  (antes 1,3–1,6 s; con el servicio lento 0,8–1,6 frente a 1,8–2,3 s). Edge mete 0,23 s de silencio delante y
+  0,9 s detrás: recortados. Fin de frase 0,45 s + espera de 1,5 s si la frase queda a medias ("y…", "de…").
+- Cerebros (para el bloque 5): primer token con el agente jarvis: gpt-5.6-luna 1,4–1,7 s (y ratos de 4–10 s),
+  terra 2,2–5,8 s, gpt-6-luna 5,3 s; Sonnet 1,1–2,4 s; Haiku 0,6–1,9 s. Agente ligero `charla` con Haiku:
+  0,63–0,73 s. `charla` con ChatGPT no arranca: sin login propio y la herencia del OAuth de jarvis falla
+  (McpConnectionAuthorityError) → revertida; haría falta ⏸ login del señor en ese agente.
+- Vocabulario privado de Whisper (`~/.config/jarvis/vocabulario.txt`, 600): 88 artistas (caché de letras del
+  escritorio) y 51 aplicaciones; `scripts/jarvis-vocabulario`. Pendiente medir si ayuda.
+- Borrado: copia archivada de la conversación de 18 turnos (fila + VACUUM), transcripción de la sesión del CLI de
+  Claude del 17/11 tachada (443 líneas de log y 50 textos), caché /tmp/openclaw de la sesión de prueba.

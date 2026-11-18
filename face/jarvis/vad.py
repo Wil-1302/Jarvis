@@ -46,10 +46,11 @@ class SileroVAD:
 
 
 class Utterance:
-    __slots__ = ("audio", "t_start", "t_end", "t_emit")
+    __slots__ = ("audio", "t_start", "t_end", "t_emit", "i0")
 
-    def __init__(self, audio, t_start, t_end, t_emit):
+    def __init__(self, audio, t_start, t_end, t_emit, i0=None):
         self.audio, self.t_start, self.t_end, self.t_emit = audio, t_start, t_end, t_emit
+        self.i0 = i0   # índice de la 1.ª muestra en el micrófono (para recuperar el audio original, D-021)
 
     @property
     def seconds(self) -> float:
@@ -69,6 +70,7 @@ class Segmenter:
         self.start_frames = start_frames
         self.pre = collections.deque(maxlen=int(preroll * RATE / FRAME))
         self._buf = np.zeros(0, np.float32)
+        self.pos: int | None = None   # índice absoluto de la 1.ª muestra de _buf
         self.reset()
 
     def reset(self) -> None:
@@ -87,10 +89,12 @@ class Segmenter:
     def in_speech(self) -> bool:
         return self.active
 
-    def feed(self, pcm: np.ndarray, now: float | None = None) -> list[Utterance]:
+    def feed(self, pcm: np.ndarray, now: float | None = None, i0: int | None = None) -> list[Utterance]:
         if pcm.dtype == np.int16:
             pcm = pcm.astype(np.float32) / 32768
         now = time.time() if now is None else now
+        if i0 is not None and (self.pos is None or i0 != self.pos + len(self._buf)):
+            self._buf, self.pos = np.zeros(0, np.float32), i0   # hueco en el flujo: se reengancha
         self._buf = np.concatenate([self._buf, pcm])
         n = len(self._buf) // FRAME
         out: list[Utterance] = []
@@ -104,6 +108,8 @@ class Segmenter:
                 if self.run >= self.start_frames:
                     self.active = True
                     self.frames = list(self.pre)
+                    self.i_start = (None if self.pos is None else
+                                    self.pos + i * FRAME - (len(self.frames) - 1) * FRAME)
                     self.voiced, self.silence = self.run, 0
                     self.t_start = t - len(self.frames) * FRAME / RATE
                     self.t_last_voice = t
@@ -118,9 +124,12 @@ class Segmenter:
             if self.silence >= self.end_frames or len(self.frames) >= self.max_frames:
                 if self.voiced >= self.min_frames:
                     keep = len(self.frames) - max(0, self.silence - 6)  # deja ~0,2 s de cola
-                    out.append(Utterance(np.concatenate(self.frames[:keep]), self.t_start, self.t_last_voice, t))
+                    out.append(Utterance(np.concatenate(self.frames[:keep]), self.t_start, self.t_last_voice, t,
+                                         getattr(self, "i_start", None)))
                 self.active = False
                 self.frames, self.run, self.silence, self.voiced = [], 0, 0, 0
                 self.pre.clear()
         self._buf = self._buf[n * FRAME:]
+        if self.pos is not None:
+            self.pos += n * FRAME
         return out

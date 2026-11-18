@@ -75,7 +75,7 @@ class Grabador:
         t0 = time.time()
         while time.time() - t0 < espera + maxima:
             try:
-                pcm = self.q.get(timeout=0.5)
+                pcm = self.q.get(timeout=0.5)[1]
             except queue.Empty:
                 continue
             us = seg.feed(pcm)
@@ -92,7 +92,7 @@ class Grabador:
         out, t0 = [], time.time()
         while time.time() - t0 < segundos:
             try:
-                out += [u.audio for u in seg.feed(self.q.get(timeout=0.5))]
+                out += [u.audio for u in seg.feed(self.q.get(timeout=0.5)[1])]
             except queue.Empty:
                 pass
         return out

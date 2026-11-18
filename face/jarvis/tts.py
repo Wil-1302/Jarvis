@@ -115,7 +115,13 @@ class EdgeEngine:
 
     def _run(self, coro, timeout):
         import asyncio
-        return asyncio.run_coroutine_threadsafe(coro, self._loop).result(timeout)
+        import concurrent.futures
+        fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        try:
+            return fut.result(timeout)
+        except concurrent.futures.TimeoutError:
+            fut.cancel()   # que no siga leyendo de la conexión mientras se abre otra
+            raise
 
     async def _conectar(self):
         import aiohttp

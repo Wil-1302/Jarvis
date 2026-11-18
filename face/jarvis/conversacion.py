@@ -31,6 +31,10 @@ _CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
 ESPERA, CONVERSACION = "espera", "conversacion"
 
 
+class Cancelado(Exception):
+    """El señor interrumpió: se corta la respuesta en curso (también la petición al cerebro)."""
+
+
 def _cfg() -> dict:
     return yaml.safe_load(open(_CONFIG_PATH, encoding="utf-8"))
 
@@ -44,7 +48,14 @@ class Conversacion:
         self.fin_frase = float(conv.get("fin_frase", 0.45))
         # Frase a medias ("y…", "pero…", "de…"): se espera su continuación hasta este plazo y se unen (D-024).
         self.espera_incompleta = float(conv.get("espera_incompleta", 1.5))
-        self.barge_in = bool((c.get("audio") or {}).get("barge_in", False))
+        a = c.get("audio") or {}
+        bi = a.get("barge_in", "auto")
+        self.barge_in = "auto" if str(bi).lower() == "auto" else bool(bi)
+        self.bi_umbral = float(a.get("barge_in_umbral", 0.7))     # prob. de voz (VAD) para contar como interrupción
+        self.bi_min_voz = float(a.get("barge_in_min_voz", 0.12))  # s de voz seguida antes de cortar
+        self.stt_fuente = str(a.get("stt_fuente", "limpio"))      # limpio | crudo (D-021)
+        self.interrumpido = False
+        self.hub = None
         self.duck_factor = float((c.get("audio") or {}).get("ducking", 0.2))
         self.debug = bool(conv.get("debug", False))  # traza de VAD (duraciones, nunca el contenido)
         self.procesar, self.broadcast, self.abortar = procesar, broadcast, abortar
@@ -117,24 +128,34 @@ class Conversacion:
         self._escuchando()
 
     # ── Escucha (hilo) ──
+    def _barge_in_activo(self, hub) -> bool:
+        """Interrumpir hablando: solo con el filtro del audio del PC activo (la voz de JARVIS se cancela) o con
+        audífonos (no se oye a sí mismo). `audio.barge_in: auto | true | false`."""
+        if self.barge_in == "auto":
+            return hub.estado_filtro in ("activo", "audífonos")
+        return bool(self.barge_in)
+
     def run_listener(self) -> None:
         from jarvis.mic import get_hub
         from jarvis.vad import Segmenter
         hub = get_hub()
+        self.hub = hub
         mq = hub.subscribe()
         seg = Segmenter(end_silence=self.fin_frase, max_seconds=8.0)
         silenciado = False
+        voz_encima = 0          # bloques seguidos con voz mientras JARVIS habla
         while True:
             try:
-                pcm = mq.get(timeout=0.5)
+                idx, pcm = mq.get(timeout=0.5)
             except queue.Empty:
-                pcm = None
+                idx, pcm = None, None
             now = time.time()
             if now < self.sordo_hasta:
                 seg.reset()
                 continue
             hablando = tts.is_speaking() or now < tts.player.busy_until() + 0.35
-            if hablando and not self.barge_in:
+            bi = self._barge_in_activo(hub)
+            if hablando and not bi:
                 if not silenciado:
                     seg.reset()
                     silenciado = True
@@ -145,16 +166,28 @@ class Conversacion:
                 with mq.mutex:
                     mq.queue.clear()  # descarta lo captado mientras hablaba
                 continue
-            if pcm is not None:
+            if pcm is None:
+                pass
+            else:
                 seg.max_frames = int((20.0 if self.estado == CONVERSACION else 8.0) * 16000 / 512)
                 antes = seg.in_speech
-                utts = seg.feed(pcm, now)
+                utts = seg.feed(pcm, now, i0=idx)
                 if seg.in_speech and not antes:
                     tts.precalentar()   # D-024: la voz lista antes de que haga falta
+                # Interrupción por voz (D-021): el señor habla encima → JARVIS se calla y le escucha.
+                if hablando and self.ocupado.is_set() and seg.in_speech and seg.last_prob >= self.bi_umbral:
+                    voz_encima += 1
+                    if voz_encima * len(pcm) / 16000 >= self.bi_min_voz:
+                        print(f"[Conv] Interrumpido por voz ({voz_encima * len(pcm) / 16000 * 1000:.0f} ms de voz).")
+                        self.interrumpido = True
+                        self.abortar()
+                        voz_encima = 0
+                else:
+                    voz_encima = 0
                 for u in utts:
                     if self.debug:
                         print(f"[VAD] frase de {u.seconds:.1f} s ({self.estado}{', ocupado' if self.ocupado.is_set() else ''})")
-                    if self.ocupado.is_set() and not self.barge_in:
+                    if self.ocupado.is_set() and not bi:
                         continue
                     try:
                         self.q.put_nowait(u)
@@ -167,6 +200,16 @@ class Conversacion:
                 self.deadline = float("inf")
 
     # ── Atención (hilo) ──
+    def _audio_stt(self, u) -> np.ndarray:
+        """Audio que se transcribe: el limpio (sin el audio del PC) o el original del mismo tramo (D-021)."""
+        hub = getattr(self, "hub", None)
+        if (getattr(self, "stt_fuente", "limpio") == "crudo" and hub is not None and hub.filtrando
+                and u.i0 is not None):
+            raw = hub.tramo(u.i0, u.i0 + len(u.audio))
+            if len(raw) == len(u.audio):
+                return raw.astype(np.float32) / 32768
+        return u.audio
+
     def _siguiente(self, transcribe) -> tuple:
         """(frase, texto, t_stt, hablando) de la próxima frase COMPLETA. Si lo transcrito queda a medias, espera
         `espera_incompleta` s a que el señor siga y une las partes (no le corta cuando piensa)."""
@@ -189,7 +232,7 @@ class Conversacion:
                     continue
             self.exento = False
             t0 = time.time()
-            texto = transcribe(u.audio).strip()
+            texto = transcribe(Conversacion._audio_stt(self, u)).strip()
             t_stt = time.time() - t0
             if hablando:
                 if texto:
@@ -298,12 +341,19 @@ class Conversacion:
 
         def cerebro():
             def on_delta(d):
+                if self.abort_event.is_set():
+                    raise Cancelado()   # corta el stream HTTP: la respuesta en curso se cancela
                 marca.setdefault("primer_token", time.time() - t_brain0)
                 deltas.put(d)
             try:
                 resultado["r"] = self.procesar(resto, on_delta)
+            except Cancelado:
+                resultado["cancelado"] = True
             except Exception as e:
-                resultado["e"] = e
+                if self.abort_event.is_set():
+                    resultado["cancelado"] = True
+                else:
+                    resultado["e"] = e
             finally:
                 deltas.put(None)
 
@@ -325,6 +375,10 @@ class Conversacion:
             self._hud("speaking")
 
         dicho = tts.speak_stream(chunks(), on_first_audio=primer_audio)
+        if self.abort_event.is_set() or resultado.get("cancelado"):
+            print(f"[Jarvis] {dicho} [interrumpido]")
+            self.broadcast({"type": "response", "text": (dicho + " …").strip()})
+            return
         if "e" in resultado and not dicho:
             msg = resultado["e"].args[0] if resultado["e"].args else "Lo siento, algo ha fallado."
             dicho = msg if isinstance(msg, str) and msg.startswith(("No consigo", "El cerebro", "Lo siento")) else "Lo siento, algo ha fallado."
