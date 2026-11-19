@@ -319,3 +319,17 @@ NoNewPrivileges; todo eso sigue. La lista del señor añade y reordena:
 - Spotify cerrado: se abre y se espera a MPRIS **y a la ventana** + 2,5 s (Ctrl+K antes de eso se pierde).
 - Enrutado: música, Canva, imágenes y recetas cuentan como «trabajo»; la vía ligera nunca las recibe.
 - Probado en real con la salida en silencio y pausando al momento: 3,8–3,9 s con Spotify abierto, 7,7 s cerrado.
+
+## D-026: Navegador propio de JARVIS, nunca el Chrome del señor (2026-11-18)
+- OpenClaw `browser` activado solo para el agente `jarvis` (vetado en `main`; `charla` no lo tiene en su allowlist).
+  Perfil gestionado `jarvis` en `~/.openclaw/browser/jarvis/user-data`, headless, CDP en 127.0.0.1:18800.
+- Los perfiles integrados `user` (se engancha al Chrome personal) y `chrome` (extensión) se redefinen como perfiles
+  aislados vacíos con su propio puerto: ninguno puede apuntar al navegador del señor.
+- `browser.executablePath` = `scripts/bin/jarvis-chrome`: rechaza cualquier `--user-data-dir` fuera de
+  `~/.openclaw/browser/` y usa un `CHROME_CONFIG_HOME` propio (sin él, Chrome busca su base de fallos en
+  `~/.config/google-chrome`, oculto por el encierro → SIGTRAP).
+- `evaluateEnabled: false` (sin JS arbitrario en páginas con sesión) y `ssrfPolicy: {}` (sin 127.0.0.1 ni red local:
+  probado, «navigation blocked by policy» contra el HUD). Encierro: solo `~/.openclaw/browser` escribible.
+- Inicio de sesión en webs: lo hace el señor con `scripts/jarvis-navegador <url>` (ventana visible, mismo perfil);
+  el agente nunca escribe contraseñas ni códigos. Pagar, enviar, publicar o aceptar = confirmación explícita.
+- Probado: example.com y Hacker News por la herramienta del agente (8 s la petición completa).

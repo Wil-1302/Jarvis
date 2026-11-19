@@ -103,7 +103,8 @@ historial en `docs/BITACORA.md`.
   DECISIONES.md; agente `charla` (D-023) preparado en OpenClaw pero face no lo usa.
 - [x] 1. Spotify: órdenes con relleno/por cláusulas, Spotify cerrado (espera a la ventana), enrutado (D-025)
   — [ ] ⏸ reiniciar `jarvis-face` (reabre el micrófono: lo hace el señor) y probar por voz
-- [ ] 2. Navegador para Jarvis (perfil propio)
+- [x] 2. Navegador para Jarvis (perfil propio, D-026) — [ ] ⏸ el señor inicia sesión donde quiera con
+  `scripts/jarvis-navegador <url>`
 - [ ] 3. Canva (MCP oficial → navegador → .pptx local)
 - [ ] 4. Imágenes con licencia libre (Openverse + Wikimedia) en recetas, páginas web y presentaciones
 - [ ] 5. Pruebas por texto con capturas + 5 órdenes de demostración

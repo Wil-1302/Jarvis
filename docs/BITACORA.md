@@ -200,3 +200,8 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
 - Spotify (D-025): diagnóstico con el registro de face y bisect; arreglado, 10+ tests de regresión, probado en real
   (abierto y cerrado). Allowlist de playerctl alineada con AGENTS.md (`--player=` y `volume`). face sigue con el
   código anterior hasta que el señor lo reinicie.
+- Navegador propio (D-026): perfil `jarvis` aislado, envoltorio `jarvis-chrome`, sin evaluate ni red local, perfiles
+  `user`/`chrome` neutralizados. Probado por texto con el agente (Hacker News). `scripts/jarvis-navegador` para que el
+  señor inicie sesión; doctor.sh lo comprueba. Sesión de prueba `prueba-navegador` (solo un titular) sin borrar.
+- Tras el reinicio, ydotool había caído (arrancó antes de la ACL de /dev/uinput → start-limit-hit). Drop-in
+  `scripts/systemd/ydotool.service.d/` que reintenta cada 2 s; instalado y en install-face.sh. doctor.sh en verde.
