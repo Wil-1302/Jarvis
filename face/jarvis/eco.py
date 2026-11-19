@@ -91,11 +91,27 @@ def salida_por_defecto() -> dict | None:
     return next((s for s in sinks if s.get("name") == nombre), None)
 
 
-def es_audifonos(sink: dict | None) -> bool:
-    """True si la salida por defecto son audífonos: Bluetooth de tipo auricular (o sin tipo), USB/jack con forma de
-    auricular, o la toma de auriculares del portátil activa. Un altavoz Bluetooth NO cuenta (sí suena en la sala)."""
+def _coincide(sink: dict, lista) -> bool:
+    """¿La salida es una de la lista? Cada entrada se busca (sin mayúsculas) en el nombre visible, el nombre del nodo
+    y la dirección Bluetooth: «Alaxe», «bluez_output.1F_D6…» o «1F:D6:84:33:C9:2E» valen igual."""
+    p = sink.get("properties") or {}
+    campos = " | ".join(str(x) for x in (sink.get("description"), p.get("device.description"), sink.get("name"),
+                                          p.get("api.bluez5.address"), p.get("device.alias")) if x).lower()
+    return any(str(e).strip().lower() in campos for e in (lista or ()) if str(e).strip())
+
+
+def es_audifonos(sink: dict | None, parlantes=(), audifonos=()) -> bool:
+    """True si la salida por defecto son audífonos (no suenan en la sala).
+
+    Primero mandan las listas de config.yaml (`audio.parlantes` / `audio.audifonos`), porque hay parlantes Bluetooth
+    que se anuncian como «headset» (p. ej. el Alaxe). Si no está en ninguna: Bluetooth de tipo auricular (o sin tipo),
+    USB/jack con forma de auricular, o la toma de auriculares del portátil activa."""
     if not sink:
         return False
+    if _coincide(sink, parlantes):
+        return False
+    if _coincide(sink, audifonos):
+        return True
     p = sink.get("properties") or {}
     forma = (p.get("device.form_factor") or "").lower()
     puerto = (sink.get("active_port") or "").lower()

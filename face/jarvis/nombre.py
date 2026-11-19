@@ -10,11 +10,14 @@ import re
 import unicodedata
 
 _MULETILLAS = {"hey", "hei", "ei", "ey", "oye", "oiga", "hola", "eh", "e", "a", "ah", "ok", "okay", "vale",
-               "buenas", "buenos", "dias", "tardes", "noches", "y", "bueno", "mira", "che", "pues", "o", "hi"}
+               "buenas", "buenos", "dias", "tardes", "noches", "y", "bueno", "mira", "che", "pues", "o", "hi", "ya"}
 # j/y/h/ch/g/ll/sh/x/dj/zh/c/k + a/e + (r) + b/v + i + s/z  → jarvis, yarvis, harvis, charvis, jarbis, yervis, javis...
 _PATRON = re.compile(r"^(j|y|h|ch|g|ll|sh|x|dj|zh|dy|c|k)?[aeo]r{0,2}[bv]i[sz]?e?$")
 _EXTRA = {"jarvi", "jarbi", "yarvi", "jervis", "jarviz", "jarvees", "jarves", "jarvi's", "jarbes",
-          "service", "charbis", "harbys", "yarbys", "jarvys", "garvis", "jaris"}
+          "service", "charbis", "harbys", "yarbys", "jarvys", "garvis", "jaris",
+          # Grabaciones del señor (18/11, micrófono del portátil, con y sin música): «Y Arby, …», «Y Arby's, …»,
+          # «Y ya arvisita…»; «arvis/arbis/yervis» ya los cubre el patrón.
+          "arby", "arbys", "arby's", "harby", "yarby", "arvisita", "jarvisito", "jarvisita"}
 _NO = {"travis", "avis", "aviso", "bis", "vis", "es", "era", "jarra", "harvard", "javier", "chavis", "garbis", "parvis"}
 
 

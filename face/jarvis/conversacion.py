@@ -129,10 +129,11 @@ class Conversacion:
 
     # ── Escucha (hilo) ──
     def _barge_in_activo(self, hub) -> bool:
-        """Interrumpir hablando: solo con el filtro del audio del PC activo (la voz de JARVIS se cancela) o con
-        audífonos (no se oye a sí mismo). `audio.barge_in: auto | true | false`."""
+        """Interrumpir hablando. `audio.barge_in: auto | true | false`. auto = solo con audífonos (no se oye a sí
+        mismo). Con parlantes queda apagada hasta medirla en la sesión de audio: el 18/11 su propia voz por el Alaxe
+        la disparaba y cortaba cada respuesta."""
         if self.barge_in == "auto":
-            return hub.estado_filtro in ("activo", "audífonos")
+            return hub.estado_filtro == "audífonos"
         return bool(self.barge_in)
 
     def run_listener(self) -> None:

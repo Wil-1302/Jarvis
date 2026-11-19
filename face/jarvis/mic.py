@@ -1,8 +1,9 @@
 """Micrófono compartido + filtro del audio del propio PC (D-021).
 
 Captura con `pw-record` (cliente nativo de PipeWire) en vez de PortAudio/ALSA:
-- Apunta a un nodo concreto (`audio.mic_target`, el micrófono del portátil). Si no existe, WirePlumber usa la
-  fuente por defecto. Nunca se abre el micrófono Bluetooth a propósito (pasaría los audífonos a HFP).
+- Apunta a un nodo concreto (`audio.mic_target`, el micrófono del portátil). Si no existe, NO se usa la fuente por
+  defecto (`node.dont-fallback`): la captura reintenta hasta que vuelva.
+  Nunca se abre el micrófono Bluetooth (pasaría los audífonos o el parlante a manos libres, HFP).
 - 16 kHz mono s16, bloques de 20 ms; PipeWire remuestrea en el propio stream (el grafo sigue a 48 kHz).
 
 Filtro del audio del PC (`audio.filtro_pc: auto`): si la salida por defecto NO son audífonos, se captura también su
@@ -84,8 +85,9 @@ class _Captura:
 
 
 class MicHub:
-    def __init__(self, target: str | None = None, filtro: str = "auto"):
+    def __init__(self, target: str | None = None, filtro: str = "auto", parlantes=(), audifonos=()):
         self.target, self.filtro = target, filtro
+        self.parlantes, self.audifonos = list(parlantes or ()), list(audifonos or ())
         self._subs: list[queue.Queue] = []
         self._lock = threading.Lock()
         self._rms_hist: collections.deque[float] = collections.deque(maxlen=500)  # ~10 s
@@ -108,7 +110,10 @@ class MicHub:
     def _cmd_mic(self) -> list[str]:
         cmd = ["pw-record", "--raw", "--rate", str(RATE), "--channels", "1", "--format", "s16", "--latency", "20ms",
                "-P", "{ node.name = jarvis-mic node.description = \"JARVIS micrófono\" "
-                     "application.name = JARVIS media.role = Communication }"]
+                     "application.name = JARVIS media.role = Communication"
+                     # Fijado al micrófono del portátil: si no está, NO caer en la fuente por defecto (que podría ser
+                     # el micrófono de un parlante/audífonos BT y pasarlos a manos libres); la captura reintenta.
+                     + (" node.dont-fallback = true node.dont-reconnect = true" if self.target else "") + " }"]
         if self.target:
             cmd += ["--target", self.target]
         return cmd + ["-"]
@@ -130,7 +135,7 @@ class MicHub:
                     nuevo = "sin-librería"
                 elif sink is None:
                     nuevo = "apagado"
-                elif eco.es_audifonos(sink):
+                elif eco.es_audifonos(sink, self.parlantes, self.audifonos):
                     nuevo = "audífonos"
                 else:
                     nuevo = "activo"
@@ -287,6 +292,7 @@ def get_hub() -> MicHub:
         import yaml
         cfg = yaml.safe_load(open(Path(__file__).parent.parent / "config.yaml"))
         a = cfg.get("audio") or {}
-        _hub = MicHub(target=a.get("mic_target"), filtro=str(a.get("filtro_pc", "auto")))
+        _hub = MicHub(target=a.get("mic_target"), filtro=str(a.get("filtro_pc", "auto")),
+                      parlantes=a.get("parlantes") or (), audifonos=a.get("audifonos") or ())
         _hub.start()
     return _hub
