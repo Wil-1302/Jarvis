@@ -205,3 +205,13 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
   señor inicie sesión; doctor.sh lo comprueba. Sesión de prueba `prueba-navegador` (solo un titular) sin borrar.
 - Tras el reinicio, ydotool había caído (arrancó antes de la ACL de /dev/uinput → start-limit-hit). Drop-in
   `scripts/systemd/ydotool.service.d/` que reintenta cada 2 s; instalado y en install-face.sh. doctor.sh en verde.
+
+## 2026-11-18 (noche) · Parlante Bluetooth: Jarvis no oía su nombre (D-027)
+- Prueba guiada con el señor (permiso para el micrófono): ronda A repetida (en la primera solo habló una vez), ronda B
+  con Spotify en el Alaxe. Sin música: 1 de 3 detectado en vivo; con música: 1 de 3 (en ambas, tras detectarlo,
+  bucle de autoescucha cortado con `jarvis-escucha stop`). Grabaciones analizadas y borradas (shred).
+- Arreglado: vocabulario de Whisper apagado, Alaxe como parlante (filtro activo), interrupción por voz solo con
+  audífonos, micrófono sin respaldo a la fuente por defecto, formas del nombre. 157 tests; doctor en verde.
+- Visto: en conversación face escribe en el journal lo que dice el señor y lo que responde (`[Usted]`/`[Jarvis]`).
+  Las frases de esta prueba están ahí. ⏸ decidir si se deja de registrar el contenido.
+- Pendiente: ⏸ ronda de verificación con el señor (3 + 3) con face reiniciado.

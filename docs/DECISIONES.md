@@ -333,3 +333,21 @@ NoNewPrivileges; todo eso sigue. La lista del señor añade y reordena:
 - Inicio de sesión en webs: lo hace el señor con `scripts/jarvis-navegador <url>` (ventana visible, mismo perfil);
   el agente nunca escribe contraseñas ni códigos. Pagar, enviar, publicar o aceptar = confirmación explícita.
 - Probado: example.com y Hacker News por la herramienta del agente (8 s la petición completa).
+
+## D-027: Parlantes Bluetooth, nombre y vocabulario de Whisper (2026-11-18)
+- Diagnóstico con el señor (parlante BT «Alaxe», 3 «Jarvis, ¿estás despierto?» sin música y 3 con música; grabado
+  micrófono + monitor, analizado sin conexión y borrado). El micrófono nunca cambió: face graba del portátil por
+  nombre de nodo y el Alaxe siguió en A2DP.
+- Causa 1, el nombre: el vocabulario privado de Whisper (D-025, 88 artistas) sesgaba la transcripción («Y ya, Rauw
+  Is…», «ahora visita»). Con el prompt fijo corto, 3/3 «Jarvis» sin música → `stt.vocabulario: false`.
+- Causa 2, autoescucha: el Alaxe se anuncia como «headset» → face lo tomaba por audífonos: sin filtro del PC y con
+  interrupción por voz. JARVIS transcribía su propia voz, se contestaba y su eco cortaba cada respuesta (bucle).
+  → `audio.parlantes` / `audio.audifonos` en config.yaml (nombre visible, nodo o dirección BT) mandan sobre la
+  detección; el Alaxe está en `parlantes`.
+- El filtro (AEC3) con el parlante BT, medido sin conexión: retardo real 255 ms, AEC3 lo estima solo. Quita la voz de
+  JARVIS (−30 → −55 dBFS) y la música (−35 → −55) y deja la del señor: nombre 3/3 sin música y 3/3 con música con
+  `delay_ms` 60 (peor con 250). Por eso sigue activo con parlantes.
+- `barge_in: auto` = solo con audífonos; con parlantes, apagada hasta la sesión de audio.
+- El micrófono no cae nunca en la fuente por defecto (`node.dont-fallback`, `node.dont-reconnect`): si falta, reintenta.
+- Detector del nombre: «Arby», «Arby's», «arvisita» y la muletilla «ya» (de las grabaciones). `scripts/bin/jarvis-mic-actual`
+  y doctor.sh dicen de qué micrófono graba face.
