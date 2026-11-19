@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# JARVIS — Chrome del navegador propio de JARVIS (D-026). Es el `browser.executablePath` de OpenClaw y lo usa
+# también scripts/jarvis-navegador para que el señor inicie sesión.
+#
+# - Solo arranca con un --user-data-dir dentro de ~/.openclaw/browser/ (los perfiles de JARVIS). Cualquier otro
+#   (o ninguno = el perfil personal del señor en ~/.config/google-chrome) se rechaza.
+# - CHROME_CONFIG_HOME propio: con otro --user-data-dir, Chrome sigue buscando su base de datos de fallos en
+#   ~/.config/google-chrome, que el encierro del gateway oculta a propósito (InaccessiblePaths) → SIGTRAP.
+set -euo pipefail
+BASE="$HOME/.openclaw/browser"
+CHROME=/usr/bin/google-chrome-stable
+
+for a in "$@"; do [[ $a == --version || $a == -version ]] && exec "$CHROME" --version; done
+
+ud=""
+for a in "$@"; do
+  case $a in --user-data-dir=*) ud="${a#--user-data-dir=}" ;; esac
+done
+ud="${ud/#\~/$HOME}"
+real="$(realpath -m -- "$ud" 2>/dev/null || true)"
+if [[ -z $ud || $real != "$BASE"/* ]]; then
+  echo "jarvis-chrome: solo con un perfil de JARVIS (--user-data-dir dentro de $BASE)" >&2
+  exit 64
+fi
+
+export CHROME_CONFIG_HOME="$BASE/chrome-config"
+mkdir -p -m 700 "$CHROME_CONFIG_HOME"
+exec "$CHROME" "$@"

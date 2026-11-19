@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# JARVIS — abre el navegador PROPIO de JARVIS con ventana visible para que el señor inicie sesión (D-026).
+# Uso: scripts/jarvis-navegador [url]      (p. ej. https://www.canva.com)
+# Es el mismo perfil que usa el agente (~/.openclaw/browser/jarvis/user-data), NO el Chrome personal del señor.
+# Mientras la ventana está abierta, el agente no puede usar el navegador (mismo perfil); al cerrarla vuelve a poder.
+set -euo pipefail
+PERFIL="$HOME/.openclaw/browser/jarvis/user-data"
+URL="${1:-about:blank}"
+echo "→ Paro el navegador en segundo plano del gateway (si está en marcha)."
+openclaw browser stop >/dev/null 2>&1 || true
+echo "→ Abro el perfil de JARVIS ($PERFIL) en $URL. Inicie sesión y cierre la ventana al terminar."
+mkdir -p -m 700 "$PERFIL"
+exec "$(dirname "$0")/bin/jarvis-chrome" --user-data-dir="$PERFIL" --no-first-run --no-default-browser-check "$URL"

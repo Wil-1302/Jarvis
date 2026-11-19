@@ -38,6 +38,9 @@ chk "jarvis-face activo" systemctl --user is-active jarvis-face.service
 chk "HUD solo en loopback" bash -c "ss -tlnH 'sport = :7860' | awk '{print \$4}' | grep -q '^127.0.0.1:' && ! ss -tlnH 'sport = :7860' | awk '{print \$4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):'"
 chk "HUD sin token → 401" bash -c "[[ \$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:7860/api/providers) == 401 ]]"
 chk "ydotool activo (música por la app de escritorio, D-018)" systemctl --user is-active ydotool.service
+echo "Navegador de JARVIS (D-026)"
+chk "browser: perfil propio, sin evaluate" bash -c "openclaw config get browser --json 2>/dev/null | python -c 'import json,sys; b=json.load(sys.stdin); assert b[\"enabled\"] and b[\"evaluateEnabled\"] is False and b[\"executablePath\"].endswith(\"/scripts/bin/jarvis-chrome\") and b[\"defaultProfile\"]==\"jarvis\" and b.get(\"ssrfPolicy\")=={}'"
+chk "jarvis-chrome rechaza el Chrome personal" bash -c "! \"$REPO/scripts/bin/jarvis-chrome\" --headless --user-data-dir=\"\$HOME/.config/google-chrome\" 2>/dev/null"
 echo "Sistema"
 chk "sin Ollama/CUDA (D-008)" bash -c "! pacman -Q ollama >/dev/null 2>&1 && ! pacman -Q cuda >/dev/null 2>&1"
 chk "ufw activo" systemctl is-active ufw.service
