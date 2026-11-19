@@ -37,6 +37,7 @@ chk "venv de face" test -x "$REPO/face/.venv/bin/python"
 chk "jarvis-face activo" systemctl --user is-active jarvis-face.service
 chk "HUD solo en loopback" bash -c "ss -tlnH 'sport = :7860' | awk '{print \$4}' | grep -q '^127.0.0.1:' && ! ss -tlnH 'sport = :7860' | awk '{print \$4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):'"
 chk "HUD sin token → 401" bash -c "[[ \$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:7860/api/providers) == 401 ]]"
+if r=$("$REPO/scripts/bin/jarvis-mic-actual" 2>&1); then ok "micrófono de face: ${r#face graba de: }"; else ko "micrófono de face: $r"; fi
 chk "ydotool activo (música por la app de escritorio, D-018)" systemctl --user is-active ydotool.service
 echo "Navegador de JARVIS (D-026)"
 chk "browser: perfil propio, sin evaluate" bash -c "openclaw config get browser --json 2>/dev/null | python -c 'import json,sys; b=json.load(sys.stdin); assert b[\"enabled\"] and b[\"evaluateEnabled\"] is False and b[\"executablePath\"].endswith(\"/scripts/bin/jarvis-chrome\") and b[\"defaultProfile\"]==\"jarvis\" and b.get(\"ssrfPolicy\")=={}'"

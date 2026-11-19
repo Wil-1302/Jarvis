@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+"""JARVIS — ¿de qué micrófono está grabando face AHORA? (solo lectura; lo usa doctor.sh).
+
+Busca el stream `jarvis-mic` de face en PipeWire y dice a qué fuente está enlazado. Sale con 0 si es
+`audio.mic_target` de face/config.yaml (el micrófono del portátil) y no es Bluetooth; 1 si no.
+"""
+import json, pathlib, re, subprocess, sys
+cfg = (pathlib.Path(__file__).resolve().parents[2] / "face/config.yaml").read_text()
+m = re.search(r"^\s*mic_target:\s*(\S+)", cfg, re.M)
+esperado = m.group(1) if m else ""
+pj = lambda *a: json.loads(subprocess.run(["pactl", "-f", "json", "list", *a], capture_output=True, text=True,
+                                          timeout=5).stdout or "[]")
+fuentes = {s["index"]: s for s in pj("sources")}
+salidas = [o for o in pj("source-outputs") if o.get("properties", {}).get("node.name") == "jarvis-mic"]
+if not salidas:
+    print("face no está grabando (no hay stream jarvis-mic)"); sys.exit(1)
+f = fuentes.get(salidas[0].get("source"), {})
+nombre, desc = f.get("name", "?"), f.get("description", "?")
+bt = nombre.startswith("bluez") or f.get("properties", {}).get("device.bus") == "bluetooth"
+print(f"face graba de: {desc} ({nombre}){' — BLUETOOTH' if bt else ''}"
+      f"{'' if nombre == esperado else f' — esperado {esperado}'}")
+sys.exit(0 if nombre == esperado and not bt else 1)
