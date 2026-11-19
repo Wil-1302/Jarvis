@@ -14,6 +14,7 @@ Atajo (Super+J): en espera abre la conversación con un sonido; si está habland
 """
 from __future__ import annotations
 
+import os
 import queue
 import random
 import threading
@@ -92,18 +93,25 @@ class Conversacion:
             if self.estado == CONVERSACION:
                 return
             self.estado = CONVERSACION
+            # Sin plazo hasta que acabe de responder (_escuchando lo fija). Antes quedaba el de la vez anterior (0 al
+            # arrancar) y la primera conversación tras reiniciar se cerraba en el acto (18/11).
+            self.deadline = float("inf")
             ducking.duck(self.duck_factor)
             print("[Conv] En conversación.")
 
-    def _salir(self, con_sonido=True) -> None:
+    def _salir(self, con_sonido=True, sordo=False) -> None:
+        """Vuelve a espera. `sordo`: 2 s sin escuchar (despedidas y órdenes que cierran, D-022). Al cerrar por
+        silencio NO: si el señor dice «Jarvis» justo entonces, se perdía el principio de la frase (18/11)."""
         with self._lock:
             if self.estado == ESPERA:
                 return
             self.estado = ESPERA
         if con_sonido:
             tts.play_audio(sonido("fin", tts.get_engine().rate))
-        # Cerrar de verdad: 2 s sin escuchar y fuera lo que estuviera en cola; solo «Jarvis» o Super+J reactivan.
-        self.sordo_hasta = time.time() + self.sordera
+        # Cerrar de verdad: fuera lo que estuviera en cola (y, tras una despedida, 2 s sin escuchar); solo «Jarvis»
+        # o Super+J reactivan.
+        if sordo:
+            self.sordo_hasta = time.time() + self.sordera
         with self.q.mutex:
             self.q.queue.clear()
         ducking.unduck()
@@ -142,21 +150,35 @@ class Conversacion:
         hub = get_hub()
         self.hub = hub
         mq = hub.subscribe()
-        seg = Segmenter(end_silence=self.fin_frase, max_seconds=8.0)
+        seg = Segmenter(end_silence=self.fin_frase, max_seconds=8.0, preroll=0.6)   # margen tras reiniciar Silero
         silenciado = False
         voz_encima = 0          # bloques seguidos con voz mientras JARVIS habla
+        traza = os.environ.get("JARVIS_TRAZA_VAD") == "1"   # solo números: bloques, prob. de voz, descartes
+        tz = {"t": time.time(), "n": 0, "pmax": 0.0, "sordo": 0, "hablando": 0, "fuente": 0}
         while True:
             try:
                 idx, pcm = mq.get(timeout=0.5)
             except queue.Empty:
                 idx, pcm = None, None
             now = time.time()
+            if traza:
+                if pcm is not None:
+                    tz["n"] += 1
+                    tz["pmax"] = max(tz["pmax"], seg.last_prob)
+                    tz["sordo"] += now < self.sordo_hasta
+                    tz["hablando"] += tts.is_speaking() or now < tts.player.busy_until() + 0.35
+                if now - tz["t"] >= 10:
+                    print(f"[VAD] 10 s: {tz['n']} bloques · prob. máx {tz['pmax']:.2f} · sordo {tz['sordo']} · "
+                          f"hablando {tz['hablando']} · estado {self.estado} · en frase {seg.in_speech}")
+                    tz = {"t": now, "n": 0, "pmax": 0.0, "sordo": 0, "hablando": 0, "fuente": 0}
             if now < self.sordo_hasta:
                 seg.reset()
                 continue
             hablando = tts.is_speaking() or now < tts.player.busy_until() + 0.35
             bi = self._barge_in_activo(hub)
-            if hablando and not bi:
+            # En espera solo cuenta el nombre y lo que suena es el pitido de cierre: se sigue escuchando (con
+            # parlantes el filtro lo cancela; con audífonos no llega al micrófono).
+            if hablando and not bi and self.estado != ESPERA:
                 if not silenciado:
                     seg.reset()
                     silenciado = True
@@ -255,6 +277,27 @@ class Conversacion:
                 continue
             return u, texto, t_stt, False
 
+    def _segunda_opinion(self, u, transcribe, texto: str, t_stt: float) -> tuple:
+        """En espera, sin nombre en el audio FILTRADO: se transcribe el ORIGINAL del mismo tramo. Con música fuerte el
+        filtro a veces suaviza la «J» (18/11: «Y ahora estás despierto» filtrado, «Jarvis, te despiertas» original).
+        Solo cuesta en frases que se iban a descartar. → (llama, resto, texto, t_stt)."""
+        hub = getattr(self, "hub", None)
+        if (getattr(self, "stt_fuente", "limpio") != "limpio" or hub is None or not hub.filtrando
+                or u.i0 is None):
+            return False, texto, texto, t_stt
+        raw = hub.tramo(u.i0, u.i0 + len(u.audio))
+        if len(raw) != len(u.audio):
+            return False, texto, texto, t_stt
+        t0 = time.time()
+        t2 = transcribe(raw.astype(np.float32) / 32768).strip()
+        t_stt += time.time() - t0
+        llama, resto = detectar(t2)
+        if llama:
+            if self.debug:
+                print(f"[VAD] nombre en el audio original (no en el filtrado), STT total {t_stt:.2f} s")
+            return True, resto, t2, t_stt
+        return False, texto, texto, t_stt
+
     def run_worker(self) -> None:
         from jarvis.stt import transcribe_audio
         while True:
@@ -265,6 +308,8 @@ class Conversacion:
                 continue
             if self.estado == ESPERA:
                 llama, resto = detectar(texto)
+                if not llama:
+                    llama, resto, texto, t_stt = self._segunda_opinion(u, transcribe_audio, texto, t_stt)
                 if not llama:
                     if self.debug and self.verif is None:
                         from jarvis.nombre import parecido
@@ -303,7 +348,7 @@ class Conversacion:
             self.broadcast({"type": "response", "text": texto})
             self._hud("speaking")
             tts.play_audio(audio, rate)
-            self._salir(con_sonido=False)
+            self._salir(con_sonido=False, sordo=True)
             return
         # Música y volumen: atajo local, sin cerebro (D-016)
         from jarvis import acciones
@@ -317,7 +362,7 @@ class Conversacion:
             tts.speak(texto)
             print("[Tiempos] " + " · ".join(f"{k} {v:.2f}s" for k, v in tiempos.items()) + " (música)")
             if cerrar:
-                self._salir(con_sonido=False)
+                self._salir(con_sonido=False, sordo=True)
             return
         cat = clasificar(resto)
         if cat:

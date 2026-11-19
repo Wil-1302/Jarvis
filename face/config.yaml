@@ -20,7 +20,8 @@ audio:
   audifonos: []
   # D-021: filtro del audio del PROPIO PC (vídeos, música, llamadas y la voz de JARVIS): se cancela del micrófono con
   # WebRTC AEC3 usando como referencia el monitor de la salida por defecto. Con audífonos no hace falta y se salta.
-  filtro_pc: auto            # auto | off
+  filtro_pc: off             # auto | off. OFF hasta la sesión de audio (D-027): tras converger con música, AEC3 en vivo
+                             # suprimía también la voz del señor (−48 → −61 dBFS con el parlante en silencio)
   stt_fuente: limpio         # limpio | crudo: qué audio transcribe Whisper (la detección siempre va sobre el limpio)
   barge_in: auto             # interrumpirle hablando: auto = solo con audífonos (con parlantes, apagada hasta la sesión de audio)
   barge_in_umbral: 0.7       # prob. de voz (VAD Silero) que cuenta como interrupción

@@ -195,6 +195,8 @@ def trigger(source: str = "atajo") -> None:
 
 
 def main() -> None:
+    import faulthandler, signal
+    faulthandler.register(signal.SIGUSR1, all_threads=True)   # diagnóstico: kill -USR1 <pid> vuelca los hilos al journal
     global _conv
     from jarvis.web import start_web_background, hud_url
 

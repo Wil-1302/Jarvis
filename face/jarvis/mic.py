@@ -97,6 +97,9 @@ class MicHub:
         self._ref_sink: str | None = None
         self._aec = None
         self.estado_filtro = "apagado"   # apagado | audífonos | activo | sin-librería
+        # Traza del filtro (JARVIS_TRAZA_FILTRO=1): solo números, nunca audio ni texto.
+        self._traza = os.environ.get("JARVIS_TRAZA_FILTRO") == "1"
+        self._diag = {"n": 0, "sin_ref": 0, "e_in": 0.0, "e_out": 0.0, "e_ref": 0.0, "desfase": 0, "t": time.monotonic()}
         self._started = False
 
     # ── ciclo de vida ──
@@ -172,7 +175,10 @@ class MicHub:
             return raw
         j = i0 + int(round((t_mic0 - ref.t0) * RATE))     # misma hora en la referencia
         r = None
-        for _ in range(4):                                # la referencia llega casi a la vez: espera ≤ 40 ms
+        # La referencia de un parlante Bluetooth llega a ráfagas (hasta ~120 ms tarde): se espera ≤ 250 ms en vez de
+        # rellenar con ceros (con 40 ms, el 16 % de los bloques iban sin referencia y el AEC no convergía, 18/11). El
+        # micrófono se acumula mientras tanto en su búfer (4 s) y se procesa al llegar: no se pierde audio.
+        for _ in range(25):
             r = ref.leer(j, len(raw))
             if r is not None:
                 break
@@ -180,10 +186,29 @@ class MicHub:
                 ref.cond.wait(0.01)
         if r is None:
             r = np.zeros(len(raw), np.int16)
+            self._diag["sin_ref"] += 1
         out = aec.proceso(r, raw)
+        self._diag_bloque(aec, raw, out, r, ref.n - (j + len(raw)))
         if len(out) < len(raw):   # arranque del AEC (tramas de 10 ms): se rellena para mantener el índice
             out = np.concatenate([np.zeros(len(raw) - len(out), np.int16), out])
         return out[-len(raw):]
+
+    def _diag_bloque(self, aec, raw, out, r, desfase) -> None:
+        if not self._traza:
+            return
+        d = self._diag
+        f = lambda x: float(np.mean((x.astype(np.float32) / 32768) ** 2))
+        d["n"] += 1
+        d["e_in"] += f(raw); d["e_out"] += f(out[-len(raw):]) if len(out) else 0.0; d["e_ref"] += f(r)
+        d["desfase"] = desfase
+        if time.monotonic() - d["t"] >= 5.0:
+            db = lambda e: 10 * np.log10(e / max(d["n"], 1) + 1e-12)
+            erle, dl = aec.stats()
+            print(f"[Filtro] 5 s: mic {db(d['e_in']):.1f} → limpio {db(d['e_out']):.1f} dBFS · parlante "
+                  f"{db(d['e_ref']):.1f} · sin referencia {d['sin_ref']}/{d['n']} bloques · ref lleva "
+                  f"{d['desfase']/16:.0f} ms de margen · AEC retardo {dl} ms, ERLE {erle:.1f} dB")
+            self._diag = {"n": 0, "sin_ref": 0, "e_in": 0.0, "e_out": 0.0, "e_ref": 0.0, "desfase": 0,
+                          "t": time.monotonic()}
 
     def _run(self) -> None:
         backoff = 1.0
@@ -285,6 +310,14 @@ class MicHub:
 _hub: MicHub | None = None
 
 
+def modo_filtro(v) -> str:
+    """`audio.filtro_pc` → "auto" | "off". Ojo: en YAML, `off`/`no` sin comillas llegan como False (18/11: el filtro
+    seguía activo con `filtro_pc: off`)."""
+    if v is False or v is None or str(v).strip().lower() in ("off", "false", "no", "0"):
+        return "off"
+    return "auto"
+
+
 def get_hub() -> MicHub:
     global _hub
     if _hub is None:
@@ -292,7 +325,7 @@ def get_hub() -> MicHub:
         import yaml
         cfg = yaml.safe_load(open(Path(__file__).parent.parent / "config.yaml"))
         a = cfg.get("audio") or {}
-        _hub = MicHub(target=a.get("mic_target"), filtro=str(a.get("filtro_pc", "auto")),
+        _hub = MicHub(target=a.get("mic_target"), filtro=modo_filtro(a.get("filtro_pc", "auto")),
                       parlantes=a.get("parlantes") or (), audifonos=a.get("audifonos") or ())
         _hub.start()
     return _hub

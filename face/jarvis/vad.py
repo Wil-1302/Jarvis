@@ -61,13 +61,18 @@ class Segmenter:
     """Recibe audio int16/float32 de cualquier tamaño y devuelve las frases terminadas."""
 
     def __init__(self, threshold=0.5, end_silence=0.7, min_speech=0.25, max_seconds=20.0,
-                 preroll=0.3, start_frames=3):
+                 preroll=0.3, start_frames=3, reinicio_silencio=3.0):
         self.vad = SileroVAD()
         self.th, self.th_off = threshold, threshold - 0.15
         self.end_frames = int(end_silence * RATE / FRAME)
         self.min_frames = int(min_speech * RATE / FRAME)
         self.max_frames = int(max_seconds * RATE / FRAME)
         self.start_frames = start_frames
+        # Silero en streaming se «duerme» tras mucho silencio seguido: su estado LSTM deriva y luego no ve la voz
+        # (18/11: 0,53 a los 3 s de escuchar, 0,19 a los 25 s, nada tras 2 min). Fuera de una frase y tras este rato
+        # sin voz se reinicia el estado (el preroll guarda el audio previo, así que no se corta la primera sílaba).
+        self.reinicio_frames = int(reinicio_silencio * RATE / FRAME) if reinicio_silencio else 0
+        self._quieto = 0
         self.pre = collections.deque(maxlen=int(preroll * RATE / FRAME))
         self._buf = np.zeros(0, np.float32)
         self.pos: int | None = None   # índice absoluto de la 1.ª muestra de _buf
@@ -105,6 +110,10 @@ class Segmenter:
             if not self.active:
                 self.pre.append(fr)
                 self.run = self.run + 1 if p >= self.th else 0
+                self._quieto = self._quieto + 1 if p < self.th_off else 0
+                if self.reinicio_frames and self._quieto >= self.reinicio_frames:
+                    self.vad.reset()
+                    self._quieto = 0
                 if self.run >= self.start_frames:
                     self.active = True
                     self.frames = list(self.pre)
