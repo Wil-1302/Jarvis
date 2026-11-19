@@ -108,3 +108,7 @@ historial en `docs/BITACORA.md`.
 - [ ] 3. Canva (MCP oficial → navegador → .pptx local)
 - [ ] 4. Imágenes con licencia libre (Openverse + Wikimedia) en recetas, páginas web y presentaciones
 - [ ] 5. Pruebas por texto con capturas + 5 órdenes de demostración
+
+## Bloque 12 — Arranque tras reinicio (2026-11-19)
+- [x] face e ydotool con graphical-session.target; entorno recuperado al actuar; causa real por voz (D-028)
+- [ ] ⏸ el señor reinicia el PC y pide música en Spotify sin tocar nada

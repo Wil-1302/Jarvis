@@ -23,12 +23,28 @@ import unicodedata
 
 import httpx
 
+from jarvis import sesion
 from jarvis.brain import _leer_env
 
 _token: tuple[str, float] | None = None
 _api_inutil = False  # tras un 401/403 (sin Premium) no se reintenta en esta sesión
 MARKET = "PE"
 LIMITE_BUSQUEDA = 10  # máximo de la API para apps en Development Mode (feb. 2026)
+
+# Causa del último fallo, en una frase para decirla en voz alta (None si no se sabe o no hubo fallo).
+motivo: str | None = None
+
+
+def _fallo(msg: str) -> bool:
+    global motivo
+    motivo = msg
+    print(f"[Música] {msg}")
+    return False
+
+
+def olvidar_fallo() -> None:
+    global motivo
+    motivo = None
 
 
 class SinCredenciales(RuntimeError):
@@ -91,16 +107,23 @@ def _tecla(*mods_y_tecla: int) -> None:
     subprocess.run(["ydotool", "key", *seq], capture_output=True, timeout=3)
 
 
+def _ydotool_activo() -> bool:
+    return subprocess.run(["systemctl", "--user", "is-active", "--quiet", "ydotool.service"],
+                          capture_output=True, timeout=3).returncode == 0
+
+
 def _ydotool_listo() -> bool:
     sock = os.environ.get("YDOTOOL_SOCKET") or os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), ".ydotool_socket")
-    if os.path.exists(sock):
+    if os.path.exists(sock) and _ydotool_activo():
         return True
-    subprocess.run(["systemctl", "--user", "start", "ydotool.service"], capture_output=True, timeout=5)
-    for _ in range(10):
+    if not sesion.uinput_accesible():
+        return _fallo("No tengo control del teclado: no hay permiso sobre el dispositivo de entrada virtual.")
+    subprocess.run(["systemctl", "--user", "restart", "ydotool.service"], capture_output=True, timeout=5)
+    for _ in range(15):
         time.sleep(0.2)
-        if os.path.exists(sock):
+        if os.path.exists(sock) and _ydotool_activo():
             return True
-    return False
+    return _fallo("No tengo control del teclado: el servicio ydotool no está funcionando.")
 
 
 def _ventana_activa() -> dict:
@@ -155,8 +178,7 @@ def reproducir_busqueda(consulta: str, por_artista: bool = False) -> bool:
         _enfocar("class:Spotify")
         time.sleep(0.3)
         if _ventana_activa().get("class", "").lower() != "spotify":
-            print("[Música] No consigo enfocar la ventana de Spotify.")
-            return False
+            return _fallo("No consigo poner la ventana de Spotify en primer plano.")
         _tecla(_ESC)
         _tecla(_CTRL, _K)
         time.sleep(0.7)
@@ -177,7 +199,7 @@ def reproducir_busqueda(consulta: str, por_artista: bool = False) -> bool:
         if _pc("status").stdout.strip() == "Playing" and (_pista() != antes or estado_antes != "Playing"):
             return True
         time.sleep(0.25)
-    return False
+    return _fallo("Busqué en Spotify, pero no empezó a sonar.")
 
 
 def sonando() -> tuple[str, str] | None:
@@ -238,32 +260,43 @@ ASENTAR = 2.5            # s tras aparecer la ventana: la búsqueda rápida (Ctr
 def asegurar_abierto(ventana: bool = False) -> bool:
     """Spotify en marcha (MPRIS) y, si `ventana`, con su ventana visible y lista para recibir teclas.
     Si estaba cerrado lo abre y espera."""
+    # Si face arrancó antes que la sesión gráfica, sin esto hyprctl/wl-copy no ven a Hyprland.
+    hay_sesion = sesion.asegurar_entorno()
     if abierto() and (not ventana or ventana_abierta()):
         return True
-    if not abierto():
+    estaba_cerrado = not abierto()
+    if not hay_sesion:
+        return _fallo("Spotify no está abierto y no encuentro la sesión gráfica para abrirlo." if estaba_cerrado
+                      else "No encuentro la sesión gráfica, así que no veo la ventana de Spotify.")
+    if estaba_cerrado:
         print("[Música] Spotify estaba cerrado: lo abro.")
         # Hyprland 0.57 (config Lua): lanzar como hija del compositor, fuera de cualquier encierro.
-        subprocess.run(["hyprctl", "dispatch", 'hl.dsp.exec_cmd("spotify")'], capture_output=True, timeout=4)
+        r = subprocess.run(["hyprctl", "dispatch", 'hl.dsp.exec_cmd("spotify")'], capture_output=True, text=True, timeout=4)
+        if r.returncode != 0 or (r.stdout or "").strip().lower().startswith(("error", "couldn't", "invalid")):
+            return _fallo("Spotify no está abierto y Hyprland no me deja abrirlo.")
     for _ in range(int(ESPERA_ARRANQUE / 0.5)):
         time.sleep(0.5)
         if abierto() and (not ventana or ventana_abierta()):
             time.sleep(ASENTAR if ventana else 1.0)
             return True
-    print("[Música] Spotify no terminó de abrirse a tiempo.")
-    return False
+    if estaba_cerrado and not abierto():
+        return _fallo("Spotify no está abierto y no terminó de arrancar a tiempo.")
+    return _fallo("Spotify está abierto, pero no encuentro su ventana.")
 
 
 def reproducir(uri: str) -> bool:
     if not asegurar_abierto():
         return False
-    return _pc("open", uri).returncode == 0
+    return _pc("open", uri).returncode == 0 or _fallo("Spotify no aceptó la orden de reproducir.")
 
 
 def control(accion: str) -> bool:
     """play | pause | play-pause | next | previous"""
     if accion in ("play", "play-pause") and not asegurar_abierto():
         return False
-    return _pc(accion).returncode == 0
+    if not abierto():
+        return _fallo("Spotify no está abierto.")
+    return _pc(accion).returncode == 0 or _fallo("Spotify no aceptó la orden.")
 
 
 def volumen() -> float | None:

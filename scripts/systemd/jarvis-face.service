@@ -1,8 +1,12 @@
 # JARVIS face (voz + HUD). Instalada por scripts/install-face.sh en ~/.config/systemd/user/.
 [Unit]
 Description=JARVIS face (voz + HUD en 127.0.0.1:7860)
-After=openclaw-gateway.service pipewire.service wireplumber.service
-Wants=openclaw-gateway.service
+# Con la sesión gráfica, no con linger: arrancar antes deja a face sin WAYLAND_DISPLAY ni
+# HYPRLAND_INSTANCE_SIGNATURE (hyprctl/wl-copy/ydotool fallan y Spotify no abre). uwsm importa ese entorno
+# al gestor de usuario antes de llegar a graphical-session.target. El gateway sí sigue con linger.
+After=graphical-session.target openclaw-gateway.service pipewire.service wireplumber.service
+PartOf=graphical-session.target
+Wants=openclaw-gateway.service ydotool.service
 
 [Service]
 Type=simple
@@ -19,4 +23,4 @@ InaccessiblePaths=-%h/.ssh -%h/.gnupg -%h/.local/share/keyrings -%h/CyberLab -%h
 InaccessiblePaths=-%h/.config/google-chrome -%h/.config/chromium -%h/.config/BraveSoftware -%h/.mozilla
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target

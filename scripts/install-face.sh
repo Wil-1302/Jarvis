@@ -17,9 +17,16 @@ echo ">> cancelación de eco (WebRTC AEC3 del sistema, la de PipeWire) → nativ
 g++ -O2 -shared -fPIC -std=c++17 native/aec.cc $(pkg-config --cflags --libs webrtc-audio-processing-1) -o native/libjarvis_aec.so
 echo ">> hook pre-push (scripts/revisar-push.sh)"; printf '#!/usr/bin/env bash\nexec "$(git rev-parse --show-toplevel)/scripts/revisar-push.sh"\n' > ../.git/hooks/pre-push; chmod +x ../.git/hooks/pre-push
 echo ">> secretos fuera del repo (refuerzo a)"; bash ../scripts/migrar-secretos.sh
-echo ">> unidad systemd de usuario"; install -Dm644 ../scripts/systemd/jarvis-face.service ~/.config/systemd/user/jarvis-face.service
+echo ">> unidad systemd de usuario (arranca con graphical-session.target, no con linger)"
+install -Dm644 ../scripts/systemd/jarvis-face.service ~/.config/systemd/user/jarvis-face.service
 systemctl --user daemon-reload
-echo ">> ydotool (teclas para la búsqueda de Spotify, D-018)"; install -Dm644 ../scripts/systemd/ydotool.service.d/jarvis-arranque.conf ~/.config/systemd/user/ydotool.service.d/jarvis-arranque.conf; systemctl --user daemon-reload; systemctl --user enable --now ydotool.service
+systemctl --user reenable jarvis-face.service   # mueve el enlace de default.target.wants a graphical-session.target.wants
+echo ">> ydotool (teclas para la búsqueda de Spotify, D-018) con la sesión gráfica"
+install -Dm644 ../scripts/systemd/ydotool.service.d/jarvis-arranque.conf ~/.config/systemd/user/ydotool.service.d/jarvis-arranque.conf
+systemctl --user daemon-reload
+systemctl --user disable ydotool.service 2>/dev/null || true   # fuera de default.target (linger)
+systemctl --user add-wants graphical-session.target ydotool.service
+systemctl --user start ydotool.service
 
 echo ">> WirePlumber: audífonos Bluetooth siempre en A2DP (sin autoswitch a HSP/HFP)"
 install -Dm644 ../scripts/wireplumber/51-jarvis-bluetooth.conf ~/.config/wireplumber/wireplumber.conf.d/51-jarvis-bluetooth.conf

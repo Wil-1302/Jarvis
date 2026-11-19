@@ -129,10 +129,11 @@ def intentar(texto: str) -> tuple[str, bool] | None:
     t = _norm(texto)
     if not t:
         return None
+    spotify.olvidar_fallo()
     for accion, pat in _CONTROL:
         if pat.match(t):
             if not spotify.control(accion):
-                return "No consigo controlar Spotify.", False
+                return spotify.motivo or "No consigo controlar Spotify.", False
             return {"pause": "Pausado.", "play": "Reanudo la música.", "next": "Siguiente.",
                     "previous": "Anterior."}[accion], accion != "pause"
     m = _VOL.match(t) or _VOL2.match(t)
@@ -146,7 +147,7 @@ def intentar(texto: str) -> tuple[str, bool] | None:
     if _NO_MUSICA.match(resto):
         return None  # "pon una alarma…", "pon el brillo…": no es música → cerebro
     if _SOLO_MUSICA.match(resto):
-        return ("Reanudo la música." if spotify.control("play") else "No consigo abrir Spotify."), True
+        return ("Reanudo la música." if spotify.control("play") else (spotify.motivo or "No consigo abrir Spotify.")), True
     a = _ARTISTA.match(resto)
     c = None if a else _CANCION_DE.match(resto)
     animo = None if a else _ANIMO.match(resto)
@@ -164,7 +165,8 @@ def intentar(texto: str) -> tuple[str, bool] | None:
         print(f"[Música] Error al poner música: {e}")
         return "No consigo poner música en Spotify ahora mismo.", False
     if not r:
-        return f"No consigo poner «{resto}» en Spotify.", False
+        return (f"No consigo poner «{resto}». {spotify.motivo}" if spotify.motivo
+                else f"No consigo poner «{resto}» en Spotify."), False
     titulo, artista = r
     print(f"[Música] {titulo} — {artista}")
     return (f"Reproduciendo «{titulo}», de {artista}." if artista else f"Reproduciendo «{titulo}»."), True

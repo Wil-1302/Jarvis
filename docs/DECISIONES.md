@@ -351,3 +351,19 @@ NoNewPrivileges; todo eso sigue. La lista del señor añade y reordena:
 - El micrófono no cae nunca en la fuente por defecto (`node.dont-fallback`, `node.dont-reconnect`): si falta, reintenta.
 - Detector del nombre: «Arby», «Arby's», «arvisita» y la muletilla «ya» (de las grabaciones). `scripts/bin/jarvis-mic-actual`
   y doctor.sh dicen de qué micrófono graba face.
+
+## D-028: face y ydotool arrancan con la sesión gráfica, no con linger (2026-11-19)
+- Síntoma: tras dos reinicios, «No consigo poner …» en Spotify (el día anterior funcionaba). Journal del arranque:
+  gateway, face e ydotool a los 6 s (linger, `default.target`); la sesión gráfica (uwsm) a los 21 s. face quedó sin
+  `WAYLAND_DISPLAY` ni `HYPRLAND_INSTANCE_SIGNATURE` → `hyprctl dispatch` no lanzaba Spotify («no terminó de
+  abrirse a tiempo»); ydotoold, sin la ACL de `/dev/uinput` (uaccess llega al iniciar sesión), en bucle de
+  «Permission denied».
+- Raíz: `jarvis-face.service` → `WantedBy/After/PartOf=graphical-session.target` (uwsm importa el entorno de Hyprland
+  al gestor antes de ese target). ydotool: fuera de `default.target`, enganchado con `add-wants` a
+  `graphical-session.target` y drop-in con `After/PartOf`; se mantiene el reintento cada 2 s. El gateway sigue con
+  linger (no necesita la sesión).
+- Red de seguridad: `jarvis/sesion.py` recupera el entorno al actuar (del gestor de systemd o de los sockets de
+  `$XDG_RUNTIME_DIR`, y corrige una firma de Hyprland caducada).
+- Jarvis dice la causa: `spotify.motivo` («Spotify no está abierto y no encuentro la sesión gráfica…», «No tengo
+  control del teclado…», «Spotify está abierto, pero no encuentro su ventana», «Busqué en Spotify, pero no empezó a
+  sonar»…). doctor.sh: 5 comprobaciones de arranque; `tests/test_sesion.py`.

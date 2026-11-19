@@ -8,6 +8,8 @@ import jarvis.spotify as S
 @pytest.fixture(autouse=True)
 def limpio(monkeypatch):
     monkeypatch.setattr(S, "_api_inutil", False)
+    monkeypatch.setattr(S.sesion, "asegurar_entorno", lambda: True)
+    S.olvidar_fallo()
     esc = []
     monkeypatch.setattr(S, "reproducir_busqueda", lambda q, por_artista=False: esc.append((q, por_artista)) or True)
     monkeypatch.setattr(S, "sonando", lambda: ("Crimen", "Gustavo Cerati"))

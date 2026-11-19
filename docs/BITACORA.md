@@ -215,3 +215,12 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
 - Visto: en conversación face escribe en el journal lo que dice el señor y lo que responde (`[Usted]`/`[Jarvis]`).
   Las frases de esta prueba están ahí. ⏸ decidir si se deja de registrar el contenido.
 - Pendiente: ⏸ ronda de verificación con el señor (3 + 3) con face reiniciado.
+
+## 2026-11-19 · Spotify falla tras reiniciar (D-028)
+- Causa confirmada en el journal: face/ydotool por linger a los 6 s, sesión gráfica a los 21 s → face sin entorno de
+  Hyprland (Spotify no se lanzaba) e ydotoold sin `/dev/uinput`. Tras el reinicio manual de face a las 10:16 su
+  entorno ya era bueno.
+- Arreglo: unidades con graphical-session.target (instaladas; enlaces movidos de default.target.wants),
+  `jarvis/sesion.py` como red de seguridad, motivo real en voz. 169 tests; doctor en verde con 5 comprobaciones nuevas
+  (probada la negativa con un proceso sin entorno). face sigue con el código anterior hasta el reinicio del PC.
+- Pendiente: ⏸ el señor reinicia y prueba Spotify.

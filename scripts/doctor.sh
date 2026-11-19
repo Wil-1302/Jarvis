@@ -39,6 +39,14 @@ chk "HUD solo en loopback" bash -c "ss -tlnH 'sport = :7860' | awk '{print \$4}'
 chk "HUD sin token → 401" bash -c "[[ \$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:7860/api/providers) == 401 ]]"
 if r=$("$REPO/scripts/bin/jarvis-mic-actual" 2>&1); then ok "micrófono de face: ${r#face graba de: }"; else ko "micrófono de face: $r"; fi
 chk "ydotool activo (música por la app de escritorio, D-018)" systemctl --user is-active ydotool.service
+echo "Arranque con la sesión gráfica (no con linger: sin entorno de Hyprland ni /dev/uinput)"
+for u in jarvis-face ydotool; do
+  chk "$u arranca con graphical-session.target, no con default.target" bash -c "w=\$(systemctl --user show $u -p WantedBy --value); [[ \$w == *graphical-session.target* && \$w != *default.target* ]] && systemctl --user show $u -p After --value | grep -q graphical-session.target"
+done
+FP=$(systemctl --user show jarvis-face -p MainPID --value)
+chk "face ve a Hyprland (WAYLAND_DISPLAY e HYPRLAND_INSTANCE_SIGNATURE vigentes)" bash -c "e=\$(tr '\\0' '\\n' < /proc/$FP/environ); s=\$(grep -m1 '^HYPRLAND_INSTANCE_SIGNATURE=' <<<\"\$e\" | cut -d= -f2-); w=\$(grep -m1 '^WAYLAND_DISPLAY=' <<<\"\$e\" | cut -d= -f2-); [[ -n \$s && -S \$XDG_RUNTIME_DIR/hypr/\$s/.socket.sock && -n \$w && -S \$XDG_RUNTIME_DIR/\$w ]]"
+chk "el usuario puede escribir en /dev/uinput (ACL de logind)" test -w /dev/uinput
+chk "ydotoold sin errores de permiso desde su último arranque" bash -c "! journalctl --user -u ydotool --since \"\$(systemctl --user show ydotool -p ActiveEnterTimestamp --value)\" --no-pager -q | grep -q 'Permission denied'"
 echo "Navegador de JARVIS (D-026)"
 chk "browser: perfil propio, sin evaluate" bash -c "openclaw config get browser --json 2>/dev/null | python -c 'import json,sys; b=json.load(sys.stdin); assert b[\"enabled\"] and b[\"evaluateEnabled\"] is False and b[\"executablePath\"].endswith(\"/scripts/bin/jarvis-chrome\") and b[\"defaultProfile\"]==\"jarvis\" and b.get(\"ssrfPolicy\")=={}'"
 chk "jarvis-chrome rechaza el Chrome personal" bash -c "! \"$REPO/scripts/bin/jarvis-chrome\" --headless --user-data-dir=\"\$HOME/.config/google-chrome\" 2>/dev/null"
