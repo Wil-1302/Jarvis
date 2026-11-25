@@ -71,3 +71,9 @@ secrets.env
 
 # --- Nativo (se compila en install-face.sh) ---
 face/native/*.so
+
+# --- Google (D-029): cliente OAuth y tokens, solo en ~/.config/jarvis/google ---
+client_secret*.json
+oauth-client.json
+*tokens.json
+*-token.json

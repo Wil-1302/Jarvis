@@ -14,7 +14,8 @@
       },
     },
     entries: {
-      main: { workspace: "~/.openclaw/workspace", tools: { deny: ["browser"] } },
+      // main no ve las cuentas de Google (D-029): solo el agente jarvis.
+      main: { workspace: "~/.openclaw/workspace", tools: { deny: ["browser", "calendario__*", "escuela__*"] } },
       jarvis: {
         name: "jarvis",
         workspace: "~/.openclaw/workspace-jarvis",
@@ -32,6 +33,30 @@
         model: { primary: "openai/gpt-5.6-luna", fallbacks: [] },
         skills: ["abrir-aplicacion"],
         tools: { allow: ["exec", "read", "write", "edit", "group:web", "group:memory"], deny: ["browser"] },
+      },
+    },
+  },
+  // D-029: Google. Los dos servidores corren como servicios propios FUERA del encierro (jarvis-calendario,
+  // jarvis-escuela): el gateway nunca ve los tokens (~/.config/jarvis/google, InaccessiblePaths). Solo 127.0.0.1.
+  mcp: {
+    servers: {
+      calendario: {   // nspady/google-calendar-mcp 2.8.1, cuenta personal (lectura y escritura)
+        url: "http://127.0.0.1:18820/mcp",
+        transport: "streamable-http",
+        enabled: true,
+        connectionTimeoutMs: 5000,
+        requestTimeoutMs: 30000,
+        // Sin manage-accounts (añadir/quitar cuentas), respond-to-event ni create-events en lote.
+        toolFilter: { include: ["list-calendars", "list-events", "search-events", "get-event", "create-event",
+                                "update-event", "delete-event", "get-freebusy", "get-current-time"] },
+      },
+      escuela: {      // mcp/escuela/servidor.py, cuenta institucional (solo lectura: el token no puede escribir)
+        url: "http://127.0.0.1:18821/mcp",
+        transport: "streamable-http",
+        enabled: true,
+        connectionTimeoutMs: 5000,
+        requestTimeoutMs: 60000,
+        toolFilter: { include: ["tareas_pendientes", "cursos", "eventos_institucionales"] },
       },
     },
   },

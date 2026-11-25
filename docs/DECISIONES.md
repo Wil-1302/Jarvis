@@ -367,3 +367,44 @@ NoNewPrivileges; todo eso sigue. La lista del señor añade y reordena:
 - Jarvis dice la causa: `spotify.motivo` («Spotify no está abierto y no encuentro la sesión gráfica…», «No tengo
   control del teclado…», «Spotify está abierto, pero no encuentro su ventana», «Busqué en Spotify, pero no empezó a
   sonar»…). doctor.sh: 5 comprobaciones de arranque; `tests/test_sesion.py`.
+
+## D-029: Google (calendario personal + Classroom institucional) fuera del encierro, por MCP (2026-11-24)
+- Prioridad nueva del señor: calendario, recordatorios y Classroom antes que el resto del plan.
+- **calendario** = nspady/google-calendar-mcp **2.8.1** (npm `@cocal/google-calendar-mcp`, integridad
+  `sha512-NQdZ…WzJg==`, lockfile en `mcp/calendario/`, `npm ci --ignore-scripts`). Revisado antes de instalar (OK del
+  señor): sin scripts de instalación, solo hosts de Google, sin child_process/eval/telemetría, tokens 0600.
+  Solo la cuenta **personal**.
+- **escuela** = servidor propio (`mcp/escuela/servidor.py`, solo biblioteca estándar) para la cuenta
+  **institucional**. Motivo (elegido por el señor): nspady pide siempre `auth/calendar` completo; con scopes
+  `.readonly` el token no puede escribir aunque alguien lo use fuera del MCP.
+- Los dos corren como **servicios de usuario propios** (`jarvis-calendario`, `jarvis-escuela`) en 127.0.0.1, fuera
+  del encierro del gateway. Tokens y cliente OAuth en `~/.config/jarvis/google/` (700/600), oculto para el gateway
+  (ya lo estaba `~/.config/jarvis`). Si el MCP corriera por stdio sería hijo del gateway y tendría que leer el token
+  dentro del encierro: el agente podría leerlo con `read`/`exec`.
+- Doble filtro de herramientas (ENABLED_TOOLS + `toolFilter` de OpenClaw): fuera `manage-accounts` (añadir o quitar
+  cuentas), `respond-to-event` y `create-events`. El agente `main` tiene vetados `calendario__*` y `escuela__*`.
+- Riesgo residual aceptado: el HTTP de nspady no tiene autenticación (solo comprueba Origin); un proceso local podría
+  usarlo. El agente no puede: `curl` pide aprobación humana y el navegador tiene bloqueado 127.0.0.1.
+- Proyecto de Google Cloud con la cuenta personal, público Externo, publicado en producción **sin verificar**
+  (pantalla de «app no verificada», máximo 100 usuarios; el refresh token no caduca a los 7 días). Guía en
+  `mcp/calendario.md`.
+
+## D-030: Recordatorios por voz y alarma del PC (2026-11-24)
+- Los recordatorios los hace el agente (skill `agenda`): pregunta lo que falte (día, hora, de qué trata), deja dictar
+  la descripción, crea el evento en `primary` con notificación emergente a la hora (suena en el celular) y lo lee
+  para confirmar. Mover = `update-event`; borrar = siempre con confirmación nombrando el evento.
+- «Con alarma»: popups a la hora y 10 minutos antes + propiedad privada `jarvis_alarma=1`. face (no el cerebro)
+  busca cada 5 min esos eventos en el MCP calendario y programa la alarma al segundo: notificación urgente + voz de
+  JARVIS. La verdad está en el calendario: si el evento se mueve o se borra, la alarma lo sigue.
+- El enrutado (D-017) manda agenda, tareas, mover y borrar al cerebro de trabajo.
+
+## D-031: Avisos proactivos de Classroom y no molestar, en face y sin modelo (2026-11-24)
+- face pide cada 15 min `tareas_pendientes` al MCP escuela (sin LLM: no gasta cuota). Avisos a ≤ 24 h, 6 h y 2 h de
+  la entrega, agrupados: «Señor, le faltan estas actividades: … ¿Empezamos? Estoy dispuesto a ayudarle», con
+  notificación de escritorio. Cada umbral una vez por tarea; una tarea nueva a 3 h recibe un solo aviso.
+- Tras un aviso (30 min): «ya la entregué» (no se vuelve a avisar) y «recuérdamelo en una hora / media hora / más
+  tarde» (también sirve tras una alarma). Fuera de ese contexto, esas frases van al cerebro.
+- Silencio: `agenda.silencio` (noche 22:30–07:00 y horas de clase, configurables) y «Jarvis, no molestes hasta las 6»
+  (también «hasta mañana», «en media hora»; «ya puedes molestarme» lo quita). En silencio, solo notificación.
+- Tras hablar, la conversación queda abierta para contestar sin decir «Jarvis». Nunca interrumpe: si está pensando
+  o hablando, espera. Estado en `~/.local/state/jarvis/agenda.json` (600).

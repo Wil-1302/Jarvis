@@ -224,3 +224,12 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
   `jarvis/sesion.py` como red de seguridad, motivo real en voz. 169 tests; doctor en verde con 5 comprobaciones nuevas
   (probada la negativa con un proceso sin entorno). face sigue con el código anterior hasta el reinicio del PC.
 - Pendiente: ⏸ el señor reinicia y prueba Spotify.
+
+## 2026-11-24 · Bloque 13: calendario, recordatorios y Classroom (D-029–D-031)
+- Revisado nspady/google-calendar-mcp v2.8.1 (código fuente del tag y el build publicado). OK del señor → instalado
+  con lockfile y `--ignore-scripts` en `~/.local/lib/jarvis-mcp/google-calendar` (el primer `npm install` cortó por
+  ETIMEDOUT bajando googleapis; el segundo, con más tiempo de espera, bien). `npm audit`: 5 moderadas (glob).
+- Cuenta institucional con servidor propio de solo lectura (decisión del señor). Servicios fuera del encierro.
+- face: agenda (avisos, alarma, no molestar) y cliente MCP mínimo. 204 tests en verde. face sigue con el código
+  anterior hasta que el señor lo reinicie.
+- Pendiente: ⏸ Google Cloud y los dos inicios de sesión; después sync-brain y las pruebas reales por texto.

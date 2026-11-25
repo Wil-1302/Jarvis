@@ -27,3 +27,14 @@ def test_apagado():
                                "Hazme una presentación en Canva sobre el reciclaje", "Busca imágenes de volcanes"])
 def test_musica_y_creacion_nunca_van_a_charla(t):
     assert tipo(t) == "trabajo"
+
+
+import pytest as _pt
+
+
+@_pt.mark.parametrize("frase", ["¿Qué tareas me faltan?", "¿Qué tengo hoy?", "¿qué tengo esta semana?",
+                                "Recuérdame el viernes a las 3 entregar el informe", "Borra lo del dentista",
+                                "Mueve la reunión al lunes", "¿Tengo examen mañana?", "Sí, bórralo"])
+def test_agenda_va_al_trabajo(frase):
+    from jarvis import enrutador
+    assert enrutador.tipo(frase) == "trabajo"

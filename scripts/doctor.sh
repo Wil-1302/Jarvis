@@ -50,6 +50,19 @@ chk "ydotoold sin errores de permiso desde su último arranque" bash -c "! journ
 echo "Navegador de JARVIS (D-026)"
 chk "browser: perfil propio, sin evaluate" bash -c "openclaw config get browser --json 2>/dev/null | python -c 'import json,sys; b=json.load(sys.stdin); assert b[\"enabled\"] and b[\"evaluateEnabled\"] is False and b[\"executablePath\"].endswith(\"/scripts/bin/jarvis-chrome\") and b[\"defaultProfile\"]==\"jarvis\" and b.get(\"ssrfPolicy\")=={}'"
 chk "jarvis-chrome rechaza el Chrome personal" bash -c "! \"$REPO/scripts/bin/jarvis-chrome\" --headless --user-data-dir=\"\$HOME/.config/google-chrome\" 2>/dev/null"
+echo "Google: calendario personal y Classroom (D-029)"
+G="$HOME/.config/jarvis/google"
+chk "credenciales en $G (carpeta 700, archivos 600)" bash -c "[[ \$(stat -c %a '$G') == 700 ]] && for f in '$G'/*.json; do [[ \$(stat -c %a \"\$f\") == 600 ]] || exit 1; done && test -f '$G/oauth-client.json'"
+chk "el gateway no puede leer los tokens de Google" bash -c "! nsenter -t $P -U -m --preserve-credentials -- ls '$G' >/dev/null 2>&1"
+for s in "jarvis-calendario 18820" "jarvis-escuela 18821"; do set -- $s
+  chk "$1 activo y solo en 127.0.0.1:$2" bash -c "systemctl --user is-active -q $1 && ss -tlnH 'sport = :$2' | awk '{print \$4}' | grep -q '^127.0.0.1:' && ! ss -tlnH 'sport = :$2' | awk '{print \$4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):'"
+done
+chk "calendario fijado en 2.8.1" bash -c "[[ \$(node -p \"require('$HOME/.local/lib/jarvis-mcp/google-calendar/node_modules/@cocal/google-calendar-mcp/package.json').version\") == 2.8.1 ]]"
+chk "OpenClaw: calendario y escuela por HTTP local; main sin acceso" bash -c "jq -e '(.mcp.servers.calendario.url == \"http://127.0.0.1:18820/mcp\") and (.mcp.servers.escuela.url == \"http://127.0.0.1:18821/mcp\") and ((.mcp.servers.calendario.toolFilter.include | index(\"manage-accounts\")) == null) and ((.agents.entries.main.tools.deny | index(\"calendario__*\")) != null)' ~/.openclaw/openclaw.json"
+GC=$("$REPO/scripts/jarvis-google" check 2>&1)
+if grep -qE '^(personal|escuela)' <<<"$GC"; then
+  while IFS= read -r l; do case $l in *": OK"*|*": "*" OK"*) ok "token $l";; *) ko "token $l";; esac; done < <(grep -E '^(personal|escuela)' <<<"$GC" | sed 's/  */ /g')
+else ko "tokens de Google: $(head -1 <<<"$GC")"; fi
 echo "Sistema"
 chk "sin Ollama/CUDA (D-008)" bash -c "! pacman -Q ollama >/dev/null 2>&1 && ! pacman -Q cuda >/dev/null 2>&1"
 chk "ufw activo" systemctl is-active ufw.service

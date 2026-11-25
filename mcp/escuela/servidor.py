@@ -115,7 +115,7 @@ class Credenciales:
             try:
                 guardado = json.loads(TOKEN.read_text())
             except FileNotFoundError:
-                raise GoogleError("Sin sesión de la cuenta institucional: ejecute `mcp/escuela/servidor.py login`") from None
+                raise GoogleError("Sin sesión de la cuenta institucional: ejecute `scripts/jarvis-google login escuela`") from None
             c = _cliente()
             r = _post_form(TOKEN_URL, {"client_id": c["client_id"], "client_secret": c["client_secret"],
                                        "refresh_token": guardado["refresh_token"], "grant_type": "refresh_token"})

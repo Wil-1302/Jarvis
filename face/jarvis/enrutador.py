@@ -22,7 +22,11 @@ _TRABAJO = re.compile(
     # Música: face la atiende en local; si una orden se le escapa, que llegue al agente completo y no a la vía
     # ligera de charla (que no tiene herramientas) — ver test de regresión.
     r"musica|musicas|cancion|canciones|playlist|album|disco|cantante|reproducir|reproduzcas|pausa|"
-    r"pon(me|te|le)? (algo|una|unas|un|el|la|los|las|musica)|canva|imagen|imagenes|foto|fotos|receta)\b")
+    r"pon(me|te|le)? (algo|una|unas|un|el|la|los|las|musica)|canva|imagen|imagenes|foto|fotos|receta|"
+    # Agenda y Classroom (D-029): necesitan las herramientas del agente jarvis.
+    r"recuerdamelo|recordarme|tarea|tareas|deberes|pendiente|pendientes|classroom|entrega|entregar|evento|eventos|"
+    r"que tengo (hoy|manana|pasado manana|esta semana|el|la)|mi dia|horario|clases?|examen|examenes|"
+    r"mueve|muevelo|pasa (lo|la|el)|borra|borralo|elimina|cancela (la|el|lo))\b")
 
 
 def _norm(t: str) -> str:

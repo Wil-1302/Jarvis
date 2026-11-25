@@ -8,6 +8,25 @@ historial en `docs/BITACORA.md`.
 - Fase 1 (Montaje) ✅ 2026-11-11: monorepo, subtree de face, submodule de OpenClaw, ANALISIS_FACE, PLAN, DECISIONES.
 - Fase 2 en adelante (WSL2) **abandonada**: WSL corrupto (`Wsl/0x80070570`). Se replanifica en los bloques siguientes.
 
+## Bloque 13 — PRIORIDAD: calendario, recordatorios y Classroom (2026-11-24)
+> Lo demás (ducking suave, segundo plano, efecto visual, WhatsApp, Canva…) va después y sigue abajo tal cual.
+- [x] Revisar nspady/google-calendar-mcp 2.8.1 y ⏸ OK del señor → instalado fijado (D-029)
+- [x] MCP propio `escuela` (institucional, solo lectura): Classroom + calendario
+- [x] Servicios `jarvis-calendario` / `jarvis-escuela` fuera del encierro; tokens en `~/.config/jarvis/google`
+- [x] Config de OpenClaw (`mcp.servers`, filtro de herramientas, `main` sin acceso) y skill `agenda`
+- [x] face: avisos de tareas (24/6/2 h), alarma del PC, no molestar, «ya la entregué», «recuérdamelo en…» (D-030, D-031)
+- [x] Tests (agenda, escuela, cliente MCP, enrutado) y doctor.sh (servicios, permisos, tokens válidos)
+- [ ] ⏸ El señor: proyecto de Google Cloud, APIs, consentimiento, cliente Escritorio, publicar (mcp/calendario.md)
+- [ ] ⏸ El señor: `scripts/jarvis-google login personal` y `login escuela`; crear el calendario «JARVIS pruebas»
+- [ ] `scripts/sync-brain.sh`; pruebas por texto en el calendario de prueba (y borrarlas); doctor en verde
+- [ ] Si la institución bloquea Classroom: anotar el error exacto; plan B con el navegador (después)
+- [ ] ⏸ Horario de clases del señor → `agenda.silencio.clases`; reiniciar `jarvis-face` (lo hace el señor)
+- [ ] ⏸ Prueba por voz: recordatorio, «con alarma», «¿qué tengo hoy?», «¿qué tareas me faltan?»
+- [ ] DECISIONES/BITÁCORA al día y ⏸ push
+- Después, no ahora: leer el enunciado de cada tarea con el navegador; carpetas con plantillas por curso y documentos
+  de apoyo; imágenes (comprobar si el login de ChatGPT plan Go en OpenClaw permite generarlas; **nunca** automatizar
+  chatgpt.com, va contra las condiciones de OpenAI).
+
 ## Bloque 0 — Auditoría ✅ (2026-11-16)
 - [x] `docs/ENTORNO_ARCH.md`
 
