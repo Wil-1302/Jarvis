@@ -33,7 +33,9 @@ def test_envia_solo_mensaje_nuevo_y_user_estable(monkeypatch):
     assert url.endswith("/v1/chat/completions") and url.startswith("http://127.0.0.1:")
     assert body["model"] == "openclaw/jarvis" and body["user"] == "face:jarvis"
     # Solo el mensaje nuevo, precedido de la instrucción de estilo hablado (prosa, sin Markdown) para ambos cerebros.
-    assert body["messages"] == [{"role": "system", "content": B.ESTILO_VOZ}, {"role": "user", "content": "hola"}]
+    sistema = body["messages"][0]
+    assert sistema["role"] == "system" and sistema["content"].startswith(B.ESTILO_VOZ + " Ahora: ")
+    assert body["messages"][1:] == [{"role": "user", "content": "hola"}]
     assert "prosa" in B.ESTILO_VOZ and "listas" in B.ESTILO_VOZ
     assert headers["Authorization"] == "Bearer " + "t" * 48
     assert "x-openclaw-model" not in headers
@@ -84,3 +86,11 @@ def test_sin_token(monkeypatch):
     monkeypatch.setattr(B, "SECRETS", B.Path("/nonexistent/secrets.env"))
     with pytest.raises(B.BrainError, match="OPENCLAW_GATEWAY_TOKEN"):
         B.Brain().ask("hola")
+
+
+def test_fecha_actual_da_los_dias_de_la_semana():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    f = B.fecha_actual(datetime(2026, 11, 24, 23, 5, tzinfo=ZoneInfo("America/Lima")))
+    assert f.startswith("Ahora: martes 24 de noviembre de 2026, 23:05")
+    assert "viernes 27" in f and "jueves 26" in f and "martes 8" in f

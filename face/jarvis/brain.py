@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
@@ -29,6 +30,20 @@ ESTILO_VOZ = ("Tu respuesta se leerá en voz alta. Responde en prosa hablada, co
               "viñetas, numeraciones, encabezados, tablas, negritas ni ningún otro Markdown, y sin emojis ni URLs. "
               "Si hay varios elementos, enlázalos en una o dos frases (por ejemplo: «primero…, después… y por "
               "último…»). Lo normal: de una a tres frases.")
+
+_DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+_MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+          "noviembre", "diciembre")
+
+
+def fecha_actual(ahora: datetime | None = None, dias: int = 14) -> str:
+    """Fecha de hoy y el día de la semana de las próximas dos semanas, ya calculados: los modelos fallan al
+    deducir el día de la semana de una fecha (dijeron «jueves 27» por el viernes 27/11/2026)."""
+    ahora = ahora or datetime.now().astimezone()
+    prox = ", ".join(f"{_DIAS[d.weekday()]} {d.day}" for d in (ahora + timedelta(days=i) for i in range(1, dias + 1)))
+    return (f"Ahora: {_DIAS[ahora.weekday()]} {ahora.day} de {_MESES[ahora.month - 1]} de {ahora.year}, "
+            f"{ahora:%H:%M} (hora de Lima). Próximos días: {prox}. Usa estos días de la semana; no los calcules.")
+
 
 # Errores que justifican cambiar de cerebro (límites, cuotas, auth del proveedor, caídas).
 _PATRON_FALLO_MODELO = re.compile(
@@ -67,6 +82,7 @@ class Brain:
     backup_model: str = "openai/gpt-5.6-terra"
     on_backup: Callable[[str], None] | None = None   # se llama con AVISO_RESPALDO antes de reintentar
     estilo: str = ESTILO_VOZ                  # instrucción de estilo hablado ("" = no enviar)
+    fecha: bool = True                        # añadir fecha actual y días de la semana (fecha_actual)
 
     @classmethod
     def from_config(cls, cfg: dict, on_backup: Callable[[str], None] | None = None) -> "Brain":
@@ -87,7 +103,8 @@ class Brain:
 
     def _mensajes(self, text: str) -> list[dict]:
         m = [{"role": "user", "content": text}]
-        return [{"role": "system", "content": self.estilo}, *m] if self.estilo else m
+        sistema = " ".join(x for x in (self.estilo, fecha_actual() if self.fecha else "") if x)
+        return [{"role": "system", "content": sistema}, *m] if sistema else m
 
     def _post(self, text: str, model: str | None) -> str:
         token = _leer_env("OPENCLAW_GATEWAY_TOKEN")
