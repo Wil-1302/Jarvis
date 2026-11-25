@@ -78,3 +78,13 @@ tts:
 hud:
   port: 7860
   open_browser: true
+agenda:
+  # D-030/D-031: avisos de Classroom (MCP «escuela») y alarma del PC (MCP «calendario»), en local y sin cerebro.
+  activo: true
+  revision_min: 15           # cada cuánto se miran las tareas sin entregar (petición ligera, sin modelo)
+  avisos_horas: [24, 6, 2]   # el día anterior, 6 h y 2 h antes; cada umbral se dice una sola vez por tarea
+  alarma_revision_min: 5     # cada cuánto se buscan eventos «con alarma» (las alarmas se programan al segundo)
+  alarma_ignora_silencio: false   # true = una alarma pedida suena aunque sea de noche o «no molestes»
+  silencio:                  # en silencio: solo notificación de escritorio, sin voz
+    noche: "22:30-07:00"
+    clases: []               # p. ej. - {dias: [lun, mie, vie], horas: "08:00-12:30"}  (⏸ el señor da su horario)

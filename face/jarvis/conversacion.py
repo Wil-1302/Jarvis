@@ -62,6 +62,7 @@ class Conversacion:
         self.procesar, self.broadcast, self.abortar = procesar, broadcast, abortar
         self.abort_event, self.es_parada = abort_event, es_parada
         self.estado = ESPERA
+        self.agenda = None                     # jarvis.agenda.Agenda (lo engancha main.py)
         self.ocupado = threading.Event()       # pensando o hablando
         self.deadline = 0.0
         self.sordo_hasta = 0.0                 # tras despedirse, el micrófono se ignora (D-022)
@@ -134,6 +135,31 @@ class Conversacion:
         self.exento = True
         tts.play_audio(sonido("activo", tts.get_engine().rate))
         self._escuchando()
+
+    # ── Avisos proactivos (jarvis/agenda.py) ──
+    def anunciar(self, texto: str, sonido_previo: bool = True, espera_max: float = 300) -> bool:
+        """Habla sin que se lo pidan (aviso de tareas, alarma) y deja la conversación abierta para que el señor
+        conteste sin decir «Jarvis» («ya la entregué», «recuérdamelo en una hora», «empecemos»). No interrumpe:
+        si está pensando o hablando, espera hasta `espera_max` s."""
+        fin = time.time() + espera_max
+        while self.ocupado.is_set():
+            if time.time() > fin:
+                print("[Conv] Aviso descartado: seguía ocupado.")
+                return False
+            time.sleep(1)
+        self.ocupado.set()
+        try:
+            self._entrar()
+            if sonido_previo:
+                tts.play_audio(sonido("activo", tts.get_engine().rate))
+            print(f"[Jarvis] {texto}")
+            self.broadcast({"type": "response", "text": texto})
+            self._hud("speaking")
+            tts.speak(texto)
+        finally:
+            self.ocupado.clear()
+        self._escuchando()
+        return True
 
     # ── Escucha (hilo) ──
     def _barge_in_activo(self, hub) -> bool:
@@ -350,6 +376,15 @@ class Conversacion:
             tts.play_audio(audio, rate)
             self._salir(con_sonido=False, sordo=True)
             return
+        # Agenda: «no molestes hasta las 6», «ya la entregué», «recuérdamelo en una hora» (D-031)
+        if self.agenda is not None:
+            r = self.agenda.orden(resto)
+            if r:
+                print(f"[Jarvis] {r}")
+                self.broadcast({"type": "response", "text": r})
+                self._hud("speaking")
+                tts.speak(r)
+                return
         # Música y volumen: atajo local, sin cerebro (D-016)
         from jarvis import acciones
         r = acciones.intentar(resto)

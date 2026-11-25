@@ -157,8 +157,16 @@ def _procesar_stream(texto: str, on_delta) -> tuple[str, bool]:
 
 # ─── Órdenes escritas (HUD y terminal) ───
 
+_agenda = None  # jarvis.agenda.Agenda
+
+
 def _process_request(user_text: str) -> str:
     _broadcast({"type": "user", "text": user_text})
+    if _agenda is not None:   # órdenes locales de agenda también por texto (HUD/terminal)
+        r = _agenda.orden(user_text)
+        if r:
+            _broadcast({"type": "response", "text": r})
+            return r
     _broadcast({"type": "state", "state": "thinking", "conversation": False})
     partes: list[str] = []
     r, _ = _procesar_stream(user_text, partes.append)
@@ -197,7 +205,7 @@ def trigger(source: str = "atajo") -> None:
 def main() -> None:
     import faulthandler, signal
     faulthandler.register(signal.SIGUSR1, all_threads=True)   # diagnóstico: kill -USR1 <pid> vuelca los hilos al journal
-    global _conv
+    global _conv, _agenda
     from jarvis.web import start_web_background, hud_url
 
     cfg = _load_config()
@@ -224,6 +232,10 @@ def main() -> None:
     _conv = Conversacion(procesar=_procesar_stream, broadcast=_broadcast, abortar=abort_all,
                          abort_event=_abort, es_parada=_is_stop_command)
     _conv.start()
+    from jarvis.agenda import Agenda
+    _agenda = Agenda(cfg.get("agenda") or {}, anunciar=lambda t, sonido=False: _conv.anunciar(t), muted=is_muted)
+    _conv.agenda = _agenda
+    _agenda.start()
     from jarvis.trigger import start_trigger_server
     start_trigger_server()  # atajo global (Super+J → jarvis-escucha)
     print("[Jarvis] Escuchando. Diga «Jarvis, …» o pulse Super+J.")
