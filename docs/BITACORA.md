@@ -233,3 +233,19 @@ Formato: fecha · bloque · qué se hizo · qué falta · problemas.
 - face: agenda (avisos, alarma, no molestar) y cliente MCP mínimo. 204 tests en verde. face sigue con el código
   anterior hasta que el señor lo reinicie.
 - Pendiente: ⏸ Google Cloud y los dos inicios de sesión; después sync-brain y las pruebas reales por texto.
+
+## 2026-11-24 (noche) · Bloque 13: logins, Classroom real y pruebas por texto (D-032)
+- Classroom con el token real: `courses.list`, `courseWork.list` y `studentSubmissions.list` (userId=me) responden con
+  `student-submissions.me.readonly` (alias de `coursework.me.readonly`). Login corregido: ya no avisa. Sin plan B.
+- `sync-brain.sh` aplicado. «JARVIS pruebas» no existía en ninguna cuenta: creado por API con el token personal
+  (decisión del señor). Pruebas por texto (sesiones `prueba-agenda*`): tareas de Classroom, eventos institucionales,
+  agenda personal, recordatorio completo, pregunta por la hora que falta, «con alarma» + descripción dictada, mover
+  y borrar con confirmación (el «no» se respeta; «Ahora sí: borra…» lo tomó como confirmación). Comprobado en
+  Google: horas, 15 min, popups, `jarvis_alarma`; el principal intacto. Eventos borrados; el calendario queda para la
+  prueba por voz. Sesiones borradas con su memoria, archivos `.deleted` y filas archivadas (VACUUM, integrity ok).
+- Error visto y arreglado: «jueves 27» por viernes → `vence_dicho` en las tareas y fecha + días de la semana en el
+  `system` de face (efecto en face tras su reinicio). 207 tests; doctor en verde.
+- ⚠ Los dos tokens traen `refresh_token_expires_in` ≈ 7 días: los logins se hicieron con la app en modo Prueba.
+  ⏸ Repetir los dos logins con la app ya publicada.
+- El «parche» de OpenClaw es solo configuración (`openclaw config patch` sobre `~/.openclaw/openclaw.json`): submódulo
+  limpio en v2026.11.5 y paquete instalado sin archivos modificados desde el 17/11.

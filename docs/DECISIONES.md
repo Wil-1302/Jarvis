@@ -408,3 +408,13 @@ NoNewPrivileges; todo eso sigue. La lista del señor añade y reordena:
   (también «hasta mañana», «en media hora»; «ya puedes molestarme» lo quita). En silencio, solo notificación.
 - Tras hablar, la conversación queda abierta para contestar sin decir «Jarvis». Nunca interrumpe: si está pensando
   o hablando, espera. Estado en `~/.local/state/jarvis/agenda.json` (600).
+
+## D-032: Classroom con un solo permiso y días de la semana calculados fuera del modelo (2026-11-24)
+- Google concede `classroom.student-submissions.me.readonly` en lugar de `classroom.coursework.me.readonly` (sin
+  casillas): son alias. Probado con el token real: `courses.list` (6 cursos), `courseWork.list` (96 tareas, con
+  fechas) y `studentSubmissions.list` con `userId=me` (96 entregas con estado) responden. El login los trata como
+  equivalentes (`EQUIVALENTES` en `mcp/escuela/servidor.py`) y ya no da el AVISO. Plan B (calendario
+  institucional) no hace falta.
+- El modelo dijo «jueves 27» por el viernes 27/11/2026. Ahora el día de la semana nunca lo calcula él:
+  `tareas_pendientes` trae `vence_dicho` («viernes 27 de noviembre, 23:59») y `hoy`; face añade en su mensaje
+  `system` la fecha actual y los días de la semana de las dos semanas siguientes (`brain.fecha_actual`).

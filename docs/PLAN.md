@@ -16,10 +16,11 @@ historial en `docs/BITACORA.md`.
 - [x] Config de OpenClaw (`mcp.servers`, filtro de herramientas, `main` sin acceso) y skill `agenda`
 - [x] face: avisos de tareas (24/6/2 h), alarma del PC, no molestar, «ya la entregué», «recuérdamelo en…» (D-030, D-031)
 - [x] Tests (agenda, escuela, cliente MCP, enrutado) y doctor.sh (servicios, permisos, tokens válidos)
-- [ ] ⏸ El señor: proyecto de Google Cloud, APIs, consentimiento, cliente Escritorio, publicar (mcp/calendario.md)
-- [ ] ⏸ El señor: `scripts/jarvis-google login personal` y `login escuela`; crear el calendario «JARVIS pruebas»
-- [ ] `scripts/sync-brain.sh`; pruebas por texto en el calendario de prueba (y borrarlas); doctor en verde
-- [ ] Si la institución bloquea Classroom: anotar el error exacto; plan B con el navegador (después)
+- [x] ⏸ El señor: proyecto de Google Cloud, APIs, consentimiento, cliente Escritorio, publicar (mcp/calendario.md)
+- [x] ⏸ El señor: `scripts/jarvis-google login personal` y `login escuela` (calendario «JARVIS pruebas» creado por API)
+- [ ] ⏸ El señor: repetir los dos logins (los tokens se emitieron en modo Prueba: caducan hacia el 01/12)
+- [x] `scripts/sync-brain.sh`; pruebas por texto en el calendario de prueba (y borrarlas); doctor en verde
+- [x] Classroom responde (no hay bloqueo); scopes alias tratados como equivalentes (D-032)
 - [ ] ⏸ Horario de clases del señor → `agenda.silencio.clases`; reiniciar `jarvis-face` (lo hace el señor)
 - [ ] ⏸ Prueba por voz: recordatorio, «con alarma», «¿qué tengo hoy?», «¿qué tareas me faltan?»
 - [ ] DECISIONES/BITÁCORA al día y ⏸ push

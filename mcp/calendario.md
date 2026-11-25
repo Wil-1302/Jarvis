@@ -3,7 +3,7 @@
 | Servidor | Cuenta | Qué es | Puerto | Permisos de Google |
 |---|---|---|---|---|
 | `calendario` | personal (la del celular) | [nspady/google-calendar-mcp](https://github.com/nspady/google-calendar-mcp) **2.8.1** (npm `@cocal/google-calendar-mcp`, lockfile en `mcp/calendario/`) | 127.0.0.1:18820 | `calendar` (lectura y escritura) |
-| `escuela` | institucional | `mcp/escuela/servidor.py` (nuestro, solo biblioteca estándar) | 127.0.0.1:18821 | `classroom.courses.readonly`, `classroom.coursework.me.readonly`, `classroom.student-submissions.me.readonly`, `calendar.readonly` |
+| `escuela` | institucional | `mcp/escuela/servidor.py` (nuestro, solo biblioteca estándar) | 127.0.0.1:18821 | `classroom.courses.readonly`, `classroom.student-submissions.me.readonly` (alias de `coursework.me.readonly`, D-032), `calendar.readonly` |
 
 - Los dos son servicios de usuario (`jarvis-calendario`, `jarvis-escuela`) **fuera del encierro del gateway**. El
   cliente OAuth y los tokens viven en `~/.config/jarvis/google/` (700, archivos 600), que el gateway no puede leer:
@@ -75,3 +75,8 @@ Errores posibles y lo que significan (el script y la herramienta los muestran ta
 
 Plan B (pendiente): leer la página de pendientes de Classroom (`https://classroom.google.com/a/not-turned-in/all`)
 con el navegador propio de JARVIS (D-026), con la sesión iniciada por el señor en `scripts/jarvis-navegador`.
+
+## Comprobar que el login no caduca a los 7 días
+
+Si al renovar el token Google devuelve `refresh_token_expires_in` (≈ 604 800 s), el login se hizo con la app en modo
+**Prueba** y caducará en 7 días: publique la app y repita los dos `login`. Con la app publicada ese campo no viene.
