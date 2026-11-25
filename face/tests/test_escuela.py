@@ -95,3 +95,19 @@ def test_cliente_solo_local():
 def test_sse():
     cuerpo = 'event: message\ndata: {"jsonrpc":"2.0","method":"x"}\n\nevent: message\ndata: {"jsonrpc":"2.0","id":7,"result":{"ok":1}}\n\n'
     assert _leer_sse(cuerpo, 7)["result"] == {"ok": 1}
+
+
+def test_alias_de_coursework_no_cuenta_como_faltante():
+    """Google concede student-submissions.me.readonly en lugar de coursework.me.readonly: no es un permiso faltante."""
+    base = "https://www.googleapis.com/auth/"
+    concedidos = {base + "classroom.courses.readonly", base + "classroom.student-submissions.me.readonly",
+                  base + "calendar.readonly", "openid"}
+    assert srv.scopes_faltantes(concedidos) == []
+    assert srv.scopes_faltantes(concedidos - {base + "calendar.readonly"}) == [base + "calendar.readonly"]
+    sin_classroom = concedidos - {base + "classroom.student-submissions.me.readonly"}
+    assert len(srv.scopes_faltantes(sin_classroom)) == 2
+
+
+def test_fecha_dicha_con_dia_de_la_semana():
+    assert srv.fecha_dicha(datetime(2026, 11, 27, 23, 59, tzinfo=LIMA)) == "viernes 27 de noviembre, 23:59"
+    assert srv.fecha_dicha(datetime(2026, 11, 24, 8, 5, tzinfo=LIMA)) == "martes 24 de noviembre, 08:05"

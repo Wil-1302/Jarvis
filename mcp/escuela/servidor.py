@@ -50,7 +50,16 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 CLASSROOM = "https://classroom.googleapis.com/v1"
 CALENDAR = "https://www.googleapis.com/calendar/v3"
 PENDIENTE = {"NEW", "CREATED", "RECLAIMED_BY_STUDENT"}   # sin entregar; TURNED_IN / RETURNED = entregada
-VERSION = "1.0.0"
+VERSION = "1.0.1"
+# Google concede `classroom.student-submissions.me.readonly` como alias de `classroom.coursework.me.readonly` (son el
+# mismo permiso: probado el 24/11/2026, courseWork.list y studentSubmissions.list userId=me responden con él). Un scope
+# pedido se da por concedido si llega él o cualquiera de sus equivalentes.
+EQUIVALENTES = {
+    "https://www.googleapis.com/auth/classroom.coursework.me.readonly": {
+        "https://www.googleapis.com/auth/classroom.student-submissions.me.readonly"},
+    "https://www.googleapis.com/auth/classroom.student-submissions.me.readonly": {
+        "https://www.googleapis.com/auth/classroom.coursework.me.readonly"},
+}
 
 
 class GoogleError(Exception):
@@ -177,6 +186,16 @@ def _vencimiento(cw: dict) -> datetime | None:
                     tzinfo=timezone.utc).astimezone()
 
 
+DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+         "noviembre", "diciembre")
+
+
+def fecha_dicha(d: datetime) -> str:
+    """«viernes 27 de noviembre, 23:59»: el día de la semana va calculado (el modelo lo calcula mal)."""
+    return f"{DIAS[d.weekday()]} {d.day} de {MESES[d.month - 1]}, {d:%H:%M}"
+
+
 def tareas_pendientes(curso_trabajo, entregas, lista_cursos, ahora: datetime | None = None,
                       incluir_sin_fecha: bool = True, dias_atras: int = 14) -> list[dict]:
     """Cálculo puro (testeable): tareas con entrega propia sin entregar, ordenadas por vencimiento.
@@ -199,6 +218,7 @@ def tareas_pendientes(curso_trabajo, entregas, lista_cursos, ahora: datetime | N
             salida.append({
                 "id": f"{c['id']}/{cw['id']}", "curso": c["nombre"], "titulo": cw.get("title", ""),
                 "vence": vence.isoformat(timespec="minutes") if vence else None,
+                "vence_dicho": fecha_dicha(vence) if vence else None,
                 "horas_restantes": round((vence - ahora).total_seconds() / 3600, 1) if vence else None,
                 "atrasada": bool(vence and vence < ahora) or bool(s.get("late")),
                 "estado": s.get("state"), "tipo": cw.get("workType", ""), "enlace": cw.get("alternateLink", ""),
@@ -269,7 +289,8 @@ def llamar(nombre: str, args: dict) -> dict:
     try:
         if nombre == "tareas_pendientes":
             datos = {"tareas": tareas(bool(args.get("incluir_sin_fecha", True))),
-                     "ahora": datetime.now().astimezone().isoformat(timespec="minutes")}
+                     "ahora": datetime.now().astimezone().isoformat(timespec="minutes"),
+                     "hoy": fecha_dicha(datetime.now().astimezone())}
         elif nombre == "cursos":
             datos = {"cursos": cursos()}
         elif nombre == "eventos_institucionales":
@@ -376,6 +397,12 @@ class Servidor(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 # ─── Inicio de sesión (flujo de app de escritorio: loopback + PKCE) ───
 
+def scopes_faltantes(concedidos: set[str]) -> list[str]:
+    """Scopes pedidos que Google no concedió, contando los alias (EQUIVALENTES) como concedidos."""
+    return [s for s in SCOPES if s.startswith("https://")
+            and s not in concedidos and not (EQUIVALENTES.get(s, set()) & concedidos)]
+
+
 def login() -> int:
     c = _cliente()
     verificador = secrets.token_urlsafe(64)
@@ -425,7 +452,7 @@ def login() -> int:
         print("ERROR: Google no entregó refresh_token (revoque el acceso en myaccount.google.com y repita).")
         return 1
     concedidos = set(r.get("scope", "").split())
-    faltan = [s for s in SCOPES if s.startswith("https://") and s not in concedidos]
+    faltan = scopes_faltantes(concedidos)
     email = ""
     try:
         req = urllib.request.Request("https://openidconnect.googleapis.com/v1/userinfo",
