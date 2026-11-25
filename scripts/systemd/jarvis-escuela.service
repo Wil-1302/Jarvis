@@ -1,0 +1,22 @@
+# JARVIS — MCP «escuela»: Classroom + Calendar de la cuenta INSTITUCIONAL, solo lectura (mcp/escuela/, D-029).
+# Instalada por scripts/install-google.sh. Fuera del encierro del gateway: solo este servicio lee su token.
+[Unit]
+Description=JARVIS MCP escuela, solo lectura (127.0.0.1:18821)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I %h/Proyectos/Jarvis/mcp/escuela/servidor.py serve
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+LockPersonality=yes
+UMask=0077
+ProtectHome=read-only
+ReadWritePaths=%h/.config/jarvis/google
+InaccessiblePaths=-%h/.ssh -%h/.gnupg -%h/.local/share/keyrings -%h/.password-store -%h/CyberLab -%h/.claude -%h/.openclaw
+InaccessiblePaths=-%h/.config/jarvis/secrets.env -%h/.config/google-chrome -%h/.config/chromium -%h/.mozilla
+InaccessiblePaths=-%h/.config/jarvis/google/calendario-tokens.json
+
+[Install]
+WantedBy=default.target

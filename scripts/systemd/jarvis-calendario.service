@@ -1,0 +1,28 @@
+# JARVIS — MCP de Google Calendar, cuenta PERSONAL (nspady/google-calendar-mcp 2.8.1, fijado; D-029).
+# Instalada por scripts/install-google.sh en ~/.config/systemd/user/. Corre FUERA del encierro del gateway: solo este
+# servicio lee el token (~/.config/jarvis/google/, 700, inaccesible para el gateway). OpenClaw se conecta por HTTP.
+[Unit]
+Description=JARVIS MCP calendario personal (127.0.0.1:18820)
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=GOOGLE_OAUTH_CREDENTIALS=%h/.config/jarvis/google/oauth-client.json
+Environment=GOOGLE_CALENDAR_MCP_TOKEN_PATH=%h/.config/jarvis/google/calendario-tokens.json
+Environment=GOOGLE_ACCOUNT_MODE=personal
+# Sin manage-accounts (añadir/quitar cuentas), respond-to-event ni create-events en lote. OpenClaw filtra otra vez.
+Environment=ENABLED_TOOLS=list-calendars,list-events,search-events,get-event,create-event,update-event,delete-event,get-freebusy,get-current-time
+ExecStart=/usr/bin/node %h/.local/lib/jarvis-mcp/google-calendar/node_modules/@cocal/google-calendar-mcp/build/index.js --transport http --host 127.0.0.1 --port 18820
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+LockPersonality=yes
+UMask=0077
+ProtectHome=read-only
+ReadWritePaths=%h/.config/jarvis/google
+InaccessiblePaths=-%h/.ssh -%h/.gnupg -%h/.local/share/keyrings -%h/.password-store -%h/CyberLab -%h/.claude -%h/.openclaw
+InaccessiblePaths=-%h/.config/jarvis/secrets.env -%h/.config/google-chrome -%h/.config/chromium -%h/.mozilla
+InaccessiblePaths=-%h/.config/jarvis/google/escuela-token.json
+
+[Install]
+WantedBy=default.target
